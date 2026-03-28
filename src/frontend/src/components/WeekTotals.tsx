@@ -62,32 +62,29 @@ export function WeekTotals({
     0,
   );
 
-  // Use calculateWeekExtra for consistent breakdown
   const weekExtra = calculateWeekExtra(calculations, settings);
-  const { weekdayOvertimeHours, saturdayHours, sundayHours, weeklyBonus } =
-    weekExtra;
+  const {
+    weekdayOvertimeHours,
+    weekdayNormalHours,
+    saturdayHours,
+    sundayHours,
+    weeklyBonus,
+  } = weekExtra;
 
-  const totalHours = totals.workedHours;
-  const above24 = totalHours > 24;
-
+  const above24 = weekdayOvertimeHours > 0;
   const grandTotal = totals.totalEarned + weeklyBonus;
   const netPay = calculateNetPay(grandTotal, settings);
-
   const hasDelayedItems = weekdayOvertimeHours > 0 || totals.nightHours > 0;
 
   const items = [
     {
       icon: <Clock className="w-4 h-4" />,
-      label: "Totaal uren",
-      value: formatHours(totals.workedHours),
-      sub: above24 ? `${formatHours(totalHours - 24)} boven 24u` : "gewerkt",
+      label: "Doordeweeks",
+      value: formatHours(weekdayNormalHours + weekdayOvertimeHours),
+      sub: above24
+        ? `24u normaal + ${formatHours(weekdayOvertimeHours)} overuren`
+        : `${formatHours(weekdayNormalHours)} à 100%`,
       highlight: above24,
-    },
-    {
-      icon: <Clock className="w-4 h-4" />,
-      label: "Basis uren",
-      value: formatHours(totals.baseHours),
-      sub: "normaal",
     },
     {
       icon: <TrendingUp className="w-4 h-4" />,
@@ -99,6 +96,20 @@ export function WeekTotals({
           : "geen",
       highlight: weekdayOvertimeHours > 0,
       delayed: weekdayOvertimeHours > 0,
+    },
+    {
+      icon: <Clock className="w-4 h-4" />,
+      label: "Zaterdag",
+      value: formatHours(saturdayHours),
+      sub: saturdayHours > 0 ? "altijd 150%" : "geen",
+      highlight: saturdayHours > 0,
+    },
+    {
+      icon: <Clock className="w-4 h-4" />,
+      label: "Zondag",
+      value: formatHours(sundayHours),
+      sub: sundayHours > 0 ? "altijd 200%" : "geen",
+      highlight: sundayHours > 0,
     },
     {
       icon: <Moon className="w-4 h-4" />,
@@ -133,7 +144,7 @@ export function WeekTotals({
           weeklyBonus > 0 ? `+${weeklyOvertimeBonusPct}% bonus` : "",
         ]
           .filter(Boolean)
-          .join(" · ") || "avond/nacht/weekend",
+          .join(" · ") || "avond/nacht",
     },
     {
       icon: <Car className="w-4 h-4" />,
@@ -196,7 +207,8 @@ export function WeekTotals({
           </h3>
           {above24 && (
             <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange/10 text-orange">
-              +{weeklyOvertimeBonusPct}% weekbonus actief (boven 24u)
+              +{weeklyOvertimeBonusPct}% weekbonus actief (doordeweeks boven
+              24u)
             </span>
           )}
           <Button
@@ -213,7 +225,91 @@ export function WeekTotals({
           </Button>
         </div>
         <div className="p-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-4">
+          {/* Prominent 24u drempel + weekbonus blok */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div
+              className="rounded-xl p-4 border"
+              style={{
+                background: "oklch(0.97 0.02 220)",
+                borderColor: "oklch(0.86 0.06 220)",
+              }}
+            >
+              <p
+                className="text-[10px] font-bold uppercase tracking-wide mb-1"
+                style={{ color: "oklch(0.48 0.09 220)" }}
+              >
+                Doordeweeks (ma–vr) normaal
+              </p>
+              <p
+                className="text-xl font-bold tabular-nums"
+                style={{ color: "oklch(0.28 0.10 220)" }}
+              >
+                {formatHours(weekExtra.weekdayNormalHours)}
+              </p>
+              <p
+                className="text-[11px] mt-0.5"
+                style={{ color: "oklch(0.52 0.07 220)" }}
+              >
+                {formatCurrency(
+                  weekExtra.weekdayNormalHours * settings.hourlyRate,
+                )}{" "}
+                à 100% (max 24u)
+              </p>
+            </div>
+            <div
+              className="rounded-xl p-4 border"
+              style={{
+                background:
+                  weekExtra.weekdayOvertimeHours > 0
+                    ? "oklch(0.96 0.06 55)"
+                    : "oklch(0.97 0.01 55)",
+                borderColor:
+                  weekExtra.weekdayOvertimeHours > 0
+                    ? "oklch(0.82 0.14 55)"
+                    : "oklch(0.90 0.04 55)",
+              }}
+            >
+              <p
+                className="text-[10px] font-bold uppercase tracking-wide mb-1"
+                style={{
+                  color:
+                    weekExtra.weekdayOvertimeHours > 0
+                      ? "oklch(0.44 0.16 55)"
+                      : "oklch(0.55 0.07 55)",
+                }}
+              >
+                Doordeweeks overuren (+{weeklyOvertimeBonusPct}%)
+              </p>
+              <p
+                className="text-xl font-bold tabular-nums"
+                style={{
+                  color:
+                    weekExtra.weekdayOvertimeHours > 0
+                      ? "oklch(0.38 0.20 55)"
+                      : "oklch(0.60 0.08 55)",
+                }}
+              >
+                {weekExtra.weekdayOvertimeHours > 0
+                  ? formatHours(weekExtra.weekdayOvertimeHours)
+                  : "—"}
+              </p>
+              <p
+                className="text-[11px] mt-0.5"
+                style={{
+                  color:
+                    weekExtra.weekdayOvertimeHours > 0
+                      ? "oklch(0.44 0.14 55)"
+                      : "oklch(0.62 0.06 55)",
+                }}
+              >
+                {weekExtra.weekdayOvertimeHours > 0
+                  ? `${formatCurrency(weekExtra.weeklyBonus)} bonus à 130%`
+                  : "doordeweeks nog niet boven 24u"}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-10 gap-4">
             {items.map((item) => (
               <div key={item.label} className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-muted-foreground">

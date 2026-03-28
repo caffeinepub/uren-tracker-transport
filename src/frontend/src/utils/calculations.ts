@@ -160,13 +160,10 @@ export function splitWeekHours(calculations: DayCalculation[]): {
     .reduce((s, c) => s + c.workedHours, 0);
   const totalHours = satHours + sunHours + weekdayHours;
 
-  // Weekend-uren vullen de 24u contract eerst op.
-  // Hoeveel contractruimte is er nog over voor weekdagen?
-  const weekdayContractSlots = Math.max(0, 24 - satHours - sunHours);
-  // Normaal (100%): weekdag-uren binnen contract
-  const weekdayNormalHours = Math.min(weekdayHours, weekdayContractSlots);
-  // Overuren (130%): weekdag-uren boven het contract
-  const weekdayOvertimeHours = Math.max(0, weekdayHours - weekdayNormalHours);
+  // Weekbonus (+30%) geldt ALLEEN als doordeweekse uren de 24u overschrijden.
+  // Weekend-uren tellen NIET mee voor deze drempel — zij zijn volledig onafhankelijk.
+  const weekdayNormalHours = Math.min(weekdayHours, 24);
+  const weekdayOvertimeHours = Math.max(0, weekdayHours - 24);
 
   return {
     satHours,
@@ -187,8 +184,7 @@ export function calculateWeeklyOvertimeBonus(
   hourlyRate: number,
   bonusPct = 30,
 ): number {
-  const { totalHours, weekdayOvertimeHours } = splitWeekHours(calculations);
-  if (totalHours <= 24) return 0;
+  const { weekdayOvertimeHours } = splitWeekHours(calculations);
   return weekdayOvertimeHours * hourlyRate * (bonusPct / 100);
 }
 
@@ -241,10 +237,9 @@ export function calculateWeekExtra(
   } = splitWeekHours(calculations);
 
   // +30% extra op doordeweekse overuren (niet op weekend)
+  // Geldt zodra weekdagUren > 24 — onafhankelijk van weekenduren
   const weeklyBonus =
-    totalHours > 24
-      ? weekdayOvertimeHours * rate * (settings.weeklyOvertimeBonusPct / 100)
-      : 0;
+    weekdayOvertimeHours * rate * (settings.weeklyOvertimeBonusPct / 100);
 
   const totalEarned =
     calculations.reduce((s, c) => s + c.totalEarned, 0) + weeklyBonus;
@@ -285,7 +280,7 @@ export function calculateWeekExtra(
     travelPay,
     weeklyBonus,
     totalHours,
-    overtimeTriggered: totalHours > 24 && weekdayOvertimeHours > 0,
+    overtimeTriggered: weekdayOvertimeHours > 0,
     // Legacy
     overtimePay: 0,
     toeslagenPay: nightPay,
