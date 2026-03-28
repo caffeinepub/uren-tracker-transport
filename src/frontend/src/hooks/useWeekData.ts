@@ -3,6 +3,7 @@ import type { DayEntry, Settings, WeekData } from "../types";
 
 const STORAGE_KEY = "trucktijden_week_data";
 const SETTINGS_KEY = "trucktijden_settings";
+const YEAR_INCOME_KEY = "trucktijden_year_income";
 
 export const DEFAULT_SETTINGS: Settings = {
   hourlyRate: 20.24,
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   whkPct: 0.52,
   loonheffingPct: 40.2,
   keuzebudgetPct: 100,
+  keuzebudgetEnabled: false,
   algHeffingskorting: 3068, // 2026 max voor laag inkomen (< ~€24k)
   arbeidskorting: 5599, // 2026 max (bereikt rond €24k, daalt daarna)
 };
@@ -45,9 +47,21 @@ function loadSettings(): Settings {
   }
 }
 
+type YearIncome = { [weekKey: string]: number };
+
+function loadYearIncome(): YearIncome {
+  try {
+    const raw = localStorage.getItem(YEAR_INCOME_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function useWeekData() {
   const [weekData, setWeekData] = useState<WeekData>(loadWeekData);
   const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [yearIncome, setYearIncome] = useState<YearIncome>(loadYearIncome);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(weekData));
@@ -56,6 +70,10 @@ export function useWeekData() {
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem(YEAR_INCOME_KEY, JSON.stringify(yearIncome));
+  }, [yearIncome]);
 
   const updateDay = useCallback((dateKey: string, entry: DayEntry) => {
     setWeekData((prev) => ({ ...prev, [dateKey]: entry }));
@@ -74,5 +92,34 @@ export function useWeekData() {
     [weekData],
   );
 
-  return { weekData, settings, updateDay, updateSettings, getEntry };
+  const addWeekIncome = useCallback(
+    (weekNum: number, year: number, grossAmount: number) => {
+      const key = `${year}-W${String(weekNum).padStart(2, "0")}`;
+      setYearIncome((prev) => ({ ...prev, [key]: grossAmount }));
+    },
+    [],
+  );
+
+  const getCumulativeIncome = useCallback(
+    (year: number, upToWeekNum?: number): number => {
+      return Object.entries(yearIncome).reduce((sum, [key, amount]) => {
+        const [keyYear, keyWeek] = key.split("-W");
+        if (Number(keyYear) !== year) return sum;
+        if (upToWeekNum !== undefined && Number(keyWeek) > upToWeekNum)
+          return sum;
+        return sum + amount;
+      }, 0);
+    },
+    [yearIncome],
+  );
+
+  return {
+    weekData,
+    settings,
+    updateDay,
+    updateSettings,
+    getEntry,
+    addWeekIncome,
+    getCumulativeIncome,
+  };
 }

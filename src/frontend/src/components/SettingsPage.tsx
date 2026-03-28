@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -112,7 +113,7 @@ const HEFFINGSKORTING_TABLE = [
 export function SettingsPage({ settings, onSave }: SettingsPageProps) {
   const [form, setForm] = useState<Settings>(settings);
 
-  const set = (key: keyof Settings, value: number) =>
+  const set = (key: keyof Settings, value: number | boolean) =>
     setForm((p) => ({ ...p, [key]: value }));
 
   const handleSave = () => {
@@ -432,6 +433,28 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               value={form.keuzebudgetPct}
               onChange={(v) => set("keuzebudgetPct", v)}
             />
+          </div>
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
+            <Switch
+              id="keuzebudget-enabled"
+              checked={form.keuzebudgetEnabled ?? false}
+              onCheckedChange={(checked) => set("keuzebudgetEnabled", checked)}
+              data-ocid="settings.keuzebudget.switch"
+            />
+            <div>
+              <Label
+                htmlFor="keuzebudget-enabled"
+                className="text-[13px] font-medium cursor-pointer"
+              >
+                Keuzebudget opbouw meenemen in berekening
+              </Label>
+              {form.keuzebudgetEnabled && (
+                <p className="text-[12px] text-muted-foreground mt-0.5">
+                  Keuzebudget 100% wordt meegenomen — kan belastbaar loon
+                  tijdelijk verlagen.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </Card>

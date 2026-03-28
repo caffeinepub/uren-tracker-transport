@@ -8,7 +8,7 @@ import {
   Truck,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DayCard } from "./components/DayCard";
 import { SettingsPage } from "./components/SettingsPage";
 import { SimulationCard } from "./components/SimulationCard";
@@ -17,6 +17,7 @@ import { WeekTotals } from "./components/WeekTotals";
 import { useWeekData } from "./hooks/useWeekData";
 import {
   calculateDay,
+  calculateWeekExtra,
   formatDateKey,
   formatDutchDate,
   formatDutchShortDate,
@@ -30,7 +31,14 @@ type Tab = "week" | "instellingen";
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("week");
   const [weekOffset, setWeekOffset] = useState(0);
-  const { settings, updateDay, updateSettings, getEntry } = useWeekData();
+  const {
+    settings,
+    updateDay,
+    updateSettings,
+    getEntry,
+    addWeekIncome,
+    getCumulativeIncome,
+  } = useWeekData();
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
 
@@ -45,6 +53,29 @@ export default function App() {
   );
 
   const weekNum = getWeekNumber(weekDates[0]);
+  const currentWeekYear = weekDates[0].getFullYear();
+
+  const weekExtra = useMemo(
+    () => calculateWeekExtra(calculations, settings),
+    [calculations, settings],
+  );
+
+  const grandTotal = useMemo(() => {
+    const totalEarned = calculations.reduce((s, c) => s + c.totalEarned, 0);
+    return totalEarned + weekExtra.weeklyBonus;
+  }, [calculations, weekExtra]);
+
+  const cumulativeIncome = useMemo(
+    () => getCumulativeIncome(currentWeekYear, weekNum),
+    [getCumulativeIncome, currentWeekYear, weekNum],
+  );
+
+  useEffect(() => {
+    if (grandTotal > 0) {
+      addWeekIncome(weekNum, currentWeekYear, grandTotal);
+    }
+  }, [weekNum, currentWeekYear, grandTotal, addWeekIncome]);
+
   const weekLabel = `Week ${weekNum}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
 
   const currentYear = new Date().getFullYear();
@@ -221,6 +252,7 @@ export default function App() {
               settings={settings}
               weekNum={weekNum}
               weekDates={weekDates}
+              cumulativeIncome={cumulativeIncome}
             />
 
             {/* Simulatie card */}

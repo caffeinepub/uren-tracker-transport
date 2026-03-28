@@ -288,6 +288,188 @@ export function calculateWeekExtra(
   };
 }
 
+// ─── Detailed Net Pay ────────────────────────────────────────────────────────
+
+export interface DetailedNetPayResult {
+  // Gross splits
+  grossBase: number; // regular weekly base (24h × rate)
+  grossDelayed: number; // overtime + weekend toeslagen + night (paid next period)
+  travelAllowance: number; // tax-free
+  vacationAccrual: number; // 11.84% opbouw (not yet paid)
+
+  // Premies (on all work gross, NOT travel)
+  premiePensioen: number;
+  premieWIA: number;
+  premieSOOB: number;
+  premieWhk: number;
+  totalPremies: number;
+
+  // Loonheffing
+  loonheffingBase: number; // very low on regular base
+  loonheffingDelayed: number; // 40.20% on delayed items
+  totalLoonheffing: number;
+
+  // Kortingen (weekly portion)
+  algHeffingskorting: number;
+  arbeidskorting: number;
+  totalKortingen: number;
+
+  // Net
+  netThisWeek: number; // what you receive from base salary this period
+  netDelayed: number; // what you'll receive next period (after bijzonder tarief)
+  netDelayedLow: number; // netDelayed * 0.95 (range lower bound)
+  netDelayedHigh: number; // netDelayed * 1.05 (range upper bound)
+  netTotal: number; // total netto incl. delayed
+
+  // Meta
+  estimatedAnnualGross: number;
+  effectiveRateBase: number; // % on base
+  effectiveRateDelayed: number; // always 40.20%
+}
+
+function calcAlgHeffingskorting(annualIncome: number): number {
+  const max = 3068;
+  const phaseOutStart = 24813;
+  const phaseOutEnd = 75518;
+  if (annualIncome <= phaseOutStart) return max;
+  if (annualIncome >= phaseOutEnd) return 0;
+  return (
+    max - ((annualIncome - phaseOutStart) * max) / (phaseOutEnd - phaseOutStart)
+  );
+}
+
+function calcArbeidskorting(annualIncome: number): number {
+  const maxKorting = 5599;
+  const riseEnd = 24000;
+  const flatEnd = 38631;
+  const phaseOutRate = 0.0651;
+  if (annualIncome <= riseEnd) return (annualIncome / riseEnd) * maxKorting;
+  if (annualIncome <= flatEnd) return maxKorting;
+  return Math.max(0, maxKorting - (annualIncome - flatEnd) * phaseOutRate);
+}
+
+/**
+ * Berekent een realistische netto-schatting met volledige breakdown:
+ * - Basis (24u) → lage effectieve loonheffing na heffingskortingen
+ * - Uitgesteld (overuren/toeslagen) → bijzonder tarief 40.20%
+ * - Premies (pensioen, WIA-Hiaat, SOOB, Whk) over bruto werk
+ * - Reiskosten belastingvrij
+ */
+export function calculateDetailedNetPay(
+  weekExtra: WeekExtraResult,
+  settings: Settings,
+  vacationAccrual: number,
+  cumulativeAnnualGross?: number,
+): DetailedNetPayResult {
+  const rate = settings.hourlyRate;
+
+  // Gross splits
+  const grossBase = 24 * rate; // always the contract hours base
+  const grossDelayed =
+    weekExtra.weekdayOvertimePay +
+    weekExtra.saturdayPay +
+    weekExtra.sundayPay +
+    weekExtra.nightPay;
+  const travelAllowance = weekExtra.travelPay;
+  const totalGrossWork = grossBase + grossDelayed;
+
+  // Premies (on total gross work, NOT travel)
+  const premiePensioen = totalGrossWork * (settings.pensionPct / 100);
+  const premieWIA = totalGrossWork * (settings.wiaHiaatPct / 100);
+  const premieSOOB = totalGrossWork * (settings.soobPct / 100);
+  const premieWhk = totalGrossWork * (settings.whkPct / 100);
+  const totalPremies = premiePensioen + premieWIA + premieSOOB + premieWhk;
+
+  // Loonheffing on base (very low due to heffingskortingen)
+  const estimatedAnnualGross =
+    cumulativeAnnualGross !== undefined
+      ? cumulativeAnnualGross
+      : grossBase * 52;
+  const annualTaxBefore = estimatedAnnualGross * 0.3575; // schijf 1
+  const annualAlgKorting = calcAlgHeffingskorting(estimatedAnnualGross);
+  const annualArbeidsk = calcArbeidskorting(estimatedAnnualGross);
+  const annualLoonheffing = Math.max(
+    0,
+    annualTaxBefore - annualAlgKorting - annualArbeidsk,
+  );
+  const loonheffingBase = annualLoonheffing / 52;
+
+  // Loonheffing on delayed (bijzonder tarief, no kortingen)
+  const loonheffingDelayed = grossDelayed * (settings.loonheffingPct / 100);
+  const totalLoonheffing = loonheffingBase + loonheffingDelayed;
+
+  // Weekly kortingen portions (for display)
+  const weeklyAlgKorting = annualAlgKorting / 52;
+  const weeklyArbeidskorting = annualArbeidsk / 52;
+  const totalKortingen = weeklyAlgKorting + weeklyArbeidskorting;
+
+  // Proportional premie split
+  const premieBase =
+    totalGrossWork > 0
+      ? totalPremies * (grossBase / totalGrossWork)
+      : totalPremies;
+  const premieDelayed =
+    totalGrossWork > 0 ? totalPremies * (grossDelayed / totalGrossWork) : 0;
+
+  // Net amounts
+  const netThisWeek =
+    grossBase - premieBase - loonheffingBase + travelAllowance;
+  const netDelayed = grossDelayed - premieDelayed - loonheffingDelayed;
+  const netTotal = netThisWeek + netDelayed;
+
+  // Effective rates
+  const effectiveRateBase =
+    grossBase > 0 ? ((premieBase + loonheffingBase) / grossBase) * 100 : 0;
+  const effectiveRateDelayed = settings.loonheffingPct; // 40.20%
+
+  return {
+    grossBase,
+    grossDelayed,
+    travelAllowance,
+    vacationAccrual,
+    premiePensioen,
+    premieWIA,
+    premieSOOB,
+    premieWhk,
+    totalPremies,
+    loonheffingBase,
+    loonheffingDelayed,
+    totalLoonheffing,
+    algHeffingskorting: weeklyAlgKorting,
+    arbeidskorting: weeklyArbeidskorting,
+    totalKortingen,
+    netThisWeek,
+    netDelayed,
+    netDelayedLow: netDelayed * 0.95,
+    netDelayedHigh: netDelayed * 1.05,
+    netTotal,
+    estimatedAnnualGross,
+    effectiveRateBase,
+    effectiveRateDelayed,
+  };
+}
+
+/**
+ * Berekent een schatting van het nettoloon na alle werknemersinhouding.
+ * Delegeert intern naar calculateDetailedNetPay voor consistente logica.
+ */
+export function calculateNetPay(grossPay: number, settings: Settings): number {
+  // Simple fallback: apply premies + bijzonder tarief as rough estimate
+  const deductions =
+    grossPay * (settings.pensionPct / 100) +
+    grossPay * (settings.wiaHiaatPct / 100) +
+    grossPay * (settings.soobPct / 100) +
+    grossPay * (settings.whkPct / 100) +
+    grossPay * (settings.loonheffingPct / 100);
+
+  // Heffingskorting: wekelijks aandeel van jaarlijkse korting
+  const algHeffingskorting = settings.algHeffingskorting ?? 3068;
+  const arbeidskorting = settings.arbeidskorting ?? 5599;
+  const weeklyHeffingskorting = (algHeffingskorting + arbeidskorting) / 52;
+
+  return Math.max(0, grossPay - deductions + weeklyHeffingskorting);
+}
+
 /**
  * Exporteer weekdata als CSV en download via browser.
  */
@@ -400,28 +582,6 @@ export function exportWeekCSV(
   a.download = `week${weekNum}_loon_overzicht.csv`;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-/**
- * Berekent een schatting van het nettoloon na alle werknemersinhouding.
- * De heffingskorting (algemene + arbeidskorting) wordt als belastingkorting
- * wekelijks verrekend en verlaagt het te betalen bedrag.
- */
-export function calculateNetPay(grossPay: number, settings: Settings): number {
-  const deductions =
-    grossPay * (settings.pensionPct / 100) +
-    grossPay * (settings.wiaHiaatPct / 100) +
-    grossPay * (settings.soobPct / 100) +
-    grossPay * (settings.whkPct / 100) +
-    grossPay * (settings.loonheffingPct / 100);
-
-  // Heffingskorting: wekelijks aandeel van jaarlijkse korting
-  // Verlaagt de loonheffing — wordt verrekend als credit op het nettoloon
-  const algHeffingskorting = settings.algHeffingskorting ?? 3068;
-  const arbeidskorting = settings.arbeidskorting ?? 5599;
-  const weeklyHeffingskorting = (algHeffingskorting + arbeidskorting) / 52;
-
-  return Math.max(0, grossPay - deductions + weeklyHeffingskorting);
 }
 
 /**
