@@ -3,6 +3,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Settings as SettingsIcon,
   Truck,
 } from "lucide-react";
@@ -10,12 +11,16 @@ import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { DayCard } from "./components/DayCard";
 import { SettingsPage } from "./components/SettingsPage";
+import { SimulationCard } from "./components/SimulationCard";
+import { WeekExtraCard } from "./components/WeekExtraCard";
 import { WeekTotals } from "./components/WeekTotals";
 import { useWeekData } from "./hooks/useWeekData";
 import {
   calculateDay,
   formatDateKey,
+  formatDutchDate,
   formatDutchShortDate,
+  getCurrentPeriod,
   getWeekDates,
   getWeekNumber,
 } from "./utils/calculations";
@@ -43,6 +48,7 @@ export default function App() {
   const weekLabel = `Week ${weekNum}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
 
   const currentYear = new Date().getFullYear();
+  const period = useMemo(() => getCurrentPeriod(), []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -113,6 +119,41 @@ export default function App() {
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6">
         {activeTab === "week" ? (
           <>
+            {/* 4-weken periode banner */}
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border px-4 py-3 mb-5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[13px]"
+              style={{
+                background: "oklch(0.96 0.025 240)",
+                borderColor: "oklch(0.80 0.06 240)",
+                color: "oklch(0.35 0.07 240)",
+              }}
+            >
+              <div className="flex items-center gap-2 shrink-0">
+                <Clock className="w-4 h-4" />
+                <span className="font-semibold">
+                  Periode {period.periodNumber} 2026
+                </span>
+                <span className="text-[12px] opacity-70">
+                  {formatDutchDate(period.startDate)} –{" "}
+                  {formatDutchDate(period.endDate)}
+                </span>
+              </div>
+              <div
+                className="hidden sm:block w-px h-4 self-center"
+                style={{ background: "oklch(0.80 0.06 240)" }}
+              />
+              <span className="opacity-80">
+                Overuren & toeslagen van deze periode worden uitbetaald in{" "}
+                <strong>
+                  periode {period.periodNumber + 1} (
+                  {formatDutchDate(period.nextStartDate)} –{" "}
+                  {formatDutchDate(period.nextEndDate)})
+                </strong>
+              </span>
+            </motion.div>
+
             {/* Week navigation */}
             <div className="flex items-center justify-between mb-6">
               <motion.h1
@@ -165,11 +206,25 @@ export default function App() {
               ))}
             </div>
 
-            {/* Week totals */}
+            {/* Week extra card (simpel overzicht) */}
+            <WeekExtraCard
+              calculations={calculations}
+              settings={settings}
+              weekNum={weekNum}
+            />
+
+            {/* Week totals (officiële loonstrook-weergave) */}
             <WeekTotals
               calculations={calculations}
               hourlyRate={settings.hourlyRate}
+              weeklyOvertimeBonusPct={settings.weeklyOvertimeBonusPct}
+              settings={settings}
+              weekNum={weekNum}
+              weekDates={weekDates}
             />
+
+            {/* Simulatie card */}
+            <SimulationCard settings={settings} />
           </>
         ) : (
           <>

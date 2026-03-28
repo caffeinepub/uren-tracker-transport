@@ -4,9 +4,25 @@ import type { DayEntry, Settings, WeekData } from "../types";
 const STORAGE_KEY = "trucktijden_week_data";
 const SETTINGS_KEY = "trucktijden_settings";
 
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Settings = {
   hourlyRate: 20.24,
   travelAllowancePerDay: 10.12,
+  saturdayPct: 150,
+  sundayPct: 200,
+  overtimeWeekday1Pct: 125,
+  overtimeWeekday2Pct: 150,
+  eveningSupplementPct: 0,
+  nightSupplementPct: 19, // CAO 2026 minimum nachttoeslag
+  nightStartHour: 21, // 21:00 – start nachttoeslag
+  nightEndHour: 5, // 05:00 – einde nachttoeslag
+  weeklyOvertimeBonusPct: 30,
+  vacationPayPct: 11.84,
+  pensionPct: 10.16,
+  wiaHiaatPct: 0.9,
+  soobPct: 0.245,
+  whkPct: 0.52,
+  loonheffingPct: 40.2,
+  keuzebudgetPct: 100,
 };
 
 function loadWeekData(): WeekData {

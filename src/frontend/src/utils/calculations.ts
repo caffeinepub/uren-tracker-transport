@@ -13,11 +13,14 @@ export function calculateDay(
     basePay: 0,
     overtimePay: 0,
     eveningNightPay: 0,
+    nightHours: 0,
     dayOfWeekSupplement: 0,
     travelAllowance: 0,
     totalEarned: 0,
     toeslagPercentage: 0,
     hasData: false,
+    vacationPayAccrual: 0,
+    dayOfWeek,
   };
 
   if (!entry.startTime || !entry.endTime) return empty;
@@ -37,50 +40,50 @@ export function calculateDay(
   if (workedMinutes <= 0) return empty;
 
   const workedHours = workedMinutes / 60;
-  const baseHours = Math.min(workedHours, 8);
-  const overtimeHours = Math.max(0, workedHours - 8);
-
   const rate = settings.hourlyRate;
 
-  // Base pay (first 8 hours)
-  const basePay = baseHours * rate;
+  const isSat = dayOfWeek === 6;
+  const isSun = dayOfWeek === 0;
 
-  // Overtime pay based on day of week
-  // Saturday overtime: 50% toeslag = 150% of rate
-  // Sunday overtime:  200% toeslag = 300% of rate
-  // Weekday overtime: first 2h at 125%, rest at 150%
-  let overtimePay = 0;
-  if (overtimeHours > 0) {
-    if (dayOfWeek === 6) {
-      // Saturday: 150%
-      overtimePay = overtimeHours * rate * 1.5;
-    } else if (dayOfWeek === 0) {
-      // Sunday: 300%
-      overtimePay = overtimeHours * rate * 3.0;
-    } else {
-      // Weekday: first 2 OT at 125%, rest at 150%
-      const first2OT = Math.min(overtimeHours, 2);
-      const remaining = Math.max(0, overtimeHours - 2);
-      overtimePay = first2OT * rate * 1.25 + remaining * rate * 1.5;
-    }
+  let basePay = 0;
+  const overtimePay = 0;
+  const dayOfWeekSupplement = 0;
+
+  // Dagtoeslagen (CAO Beroepsgoederenvervoer 2026):
+  // - Zaterdag: altijd 150% (alle uren op die dag)
+  // - Zondag:   altijd 200% (alle uren op die dag)
+  // - Ma-vr:    100% (overuren worden per week berekend, niet per dag)
+  if (isSat) {
+    basePay = workedHours * rate * (settings.saturdayPct / 100);
+  } else if (isSun) {
+    basePay = workedHours * rate * (settings.sundayPct / 100);
+  } else {
+    basePay = workedHours * rate * 1.0;
   }
-
-  // Evening (18:00-22:00) and Night (22:00-06:00) supplements
-  const eveningStart = 18 * 60;
-  const eveningEnd = 22 * 60;
-
-  let eveningMinutes = 0;
-  let nightMinutes = 0;
 
   const breakFactor =
     entry.breakMinutes > 0
       ? workedMinutes / (workedMinutes + entry.breakMinutes)
       : 1;
 
+  // Nacht-toeslag venster (configureerbaar, standaard 21:00-05:00)
+  const nightStart = (settings.nightStartHour ?? 21) * 60;
+  const nightEnd = (settings.nightEndHour ?? 5) * 60;
+
+  let eveningMinutes = 0;
+  let nightMinutes = 0;
+
   for (let m = startMinutes; m < endMinutes; m++) {
-    const adjustedTime = m % (24 * 60);
-    const isEvening = adjustedTime >= eveningStart && adjustedTime < eveningEnd;
-    const isNight = adjustedTime >= 22 * 60 || adjustedTime < 6 * 60;
+    const t = m % (24 * 60);
+    const eveningWindowStart = 18 * 60;
+    const isEvening =
+      settings.eveningSupplementPct > 0 &&
+      t >= eveningWindowStart &&
+      t < nightStart;
+    const isNight =
+      nightStart > nightEnd
+        ? t >= nightStart || t < nightEnd // bv. 21:00-05:00
+        : t >= nightStart && t < nightEnd;
     if (isEvening) eveningMinutes++;
     if (isNight) nightMinutes++;
   }
@@ -91,67 +94,362 @@ export function calculateDay(
   const eveningHours = eveningMinutes / 60;
   const nightHours = nightMinutes / 60;
 
-  // Evening supplement = +30%, Night supplement = +50%
-  const eveningNightPay = eveningHours * rate * 0.3 + nightHours * rate * 0.5;
-
-  // Day-of-week supplement on BASE hours
-  // Saturday: +50% on all worked hours (not just overtime)
-  // Sunday: +200% on all worked hours
-  // NOTE: The extra weekend toeslag on overtime is already captured in overtimePay above.
-  // Here we track the supplement on base hours only.
-  let dayMultiplierExtra = 0;
-  if (dayOfWeek === 6) {
-    dayMultiplierExtra = 0.5; // 50% toeslag
-  } else if (dayOfWeek === 0) {
-    dayMultiplierExtra = 2.0; // 200% toeslag
-  }
-  const dayOfWeekSupplement = baseHours * rate * dayMultiplierExtra;
+  const eveningNightPay =
+    eveningHours * rate * (settings.eveningSupplementPct / 100) +
+    nightHours * rate * (settings.nightSupplementPct / 100);
 
   const travelAllowance = settings.travelAllowancePerDay;
-  const totalEarned =
-    basePay +
-    overtimePay +
-    eveningNightPay +
-    dayOfWeekSupplement +
-    travelAllowance;
 
-  // Toeslag percentage display
-  const toeslagPercentage =
-    dayOfWeek === 6 ? 50 : dayOfWeek === 0 ? 200 : overtimeHours > 0 ? 25 : 0;
+  const vacationPayAccrual =
+    (basePay + eveningNightPay) * (settings.vacationPayPct / 100);
+
+  const totalEarned = basePay + eveningNightPay + travelAllowance;
+
+  let toeslagPercentage = 0;
+  if (isSat) toeslagPercentage = settings.saturdayPct - 100;
+  else if (isSun) toeslagPercentage = settings.sundayPct - 100;
 
   return {
     workedMinutes,
     workedHours,
-    baseHours,
-    overtimeHours,
+    baseHours: workedHours,
+    overtimeHours: 0, // overtime is a weekly concept
     basePay,
     overtimePay,
     eveningNightPay,
+    nightHours,
     dayOfWeekSupplement,
     travelAllowance,
     totalEarned,
     toeslagPercentage,
     hasData: true,
+    vacationPayAccrual,
+    dayOfWeek,
   };
 }
 
 /**
- * Calculates the 30% extra bonus that applies when total weekly hours exceed 24.
- * The 30% extra is applied to overtime hours once the 24h threshold is crossed.
+ * CAO-correcte verdeling van uren over categorieën:
+ *
+ * Stap 1: Tel alle uren op (na pauze): weekdag + zaterdag + zondag = totaal.
+ * Stap 2: Overuren = max(0, totaal - 24).
+ * Stap 3: Verdeel toeslagen:
+ *   - Zaterdag: ALTIJD 150% (ook als binnen 24u contract).
+ *   - Zondag:   ALTIJD 200% (ook als binnen 24u contract).
+ *   - Weekend-uren vullen de 24u eerst op.
+ *   - Weekdag normaal = max(0, 24 - satUren - zonUren), maar niet meer dan weekdagUren.
+ *   - Weekdag overuren = weekdagUren - weekdag normaal  → krijgen +30% (totaal 130%).
+ *   - Zaterdag/zondag krijgen NOOIT die extra +30% overurentoeslag.
+ */
+export function splitWeekHours(calculations: DayCalculation[]): {
+  satHours: number;
+  sunHours: number;
+  weekdayHours: number;
+  totalHours: number;
+  weekdayNormalHours: number;
+  weekdayOvertimeHours: number;
+} {
+  const satHours = calculations
+    .filter((c) => c.dayOfWeek === 6)
+    .reduce((s, c) => s + c.workedHours, 0);
+  const sunHours = calculations
+    .filter((c) => c.dayOfWeek === 0)
+    .reduce((s, c) => s + c.workedHours, 0);
+  const weekdayHours = calculations
+    .filter((c) => c.dayOfWeek >= 1 && c.dayOfWeek <= 5)
+    .reduce((s, c) => s + c.workedHours, 0);
+  const totalHours = satHours + sunHours + weekdayHours;
+
+  // Weekend-uren vullen de 24u contract eerst op.
+  // Hoeveel contractruimte is er nog over voor weekdagen?
+  const weekdayContractSlots = Math.max(0, 24 - satHours - sunHours);
+  // Normaal (100%): weekdag-uren binnen contract
+  const weekdayNormalHours = Math.min(weekdayHours, weekdayContractSlots);
+  // Overuren (130%): weekdag-uren boven het contract
+  const weekdayOvertimeHours = Math.max(0, weekdayHours - weekdayNormalHours);
+
+  return {
+    satHours,
+    sunHours,
+    weekdayHours,
+    totalHours,
+    weekdayNormalHours,
+    weekdayOvertimeHours,
+  };
+}
+
+/**
+ * Berekent de +30% weekbonus op doordeweekse overuren.
+ * Zaterdag- en zondaguren krijgen NOOIT deze bonus.
  */
 export function calculateWeeklyOvertimeBonus(
   calculations: DayCalculation[],
   hourlyRate: number,
+  bonusPct = 30,
 ): number {
-  const totalHours = calculations.reduce((s, c) => s + c.workedHours, 0);
+  const { totalHours, weekdayOvertimeHours } = splitWeekHours(calculations);
   if (totalHours <= 24) return 0;
+  return weekdayOvertimeHours * hourlyRate * (bonusPct / 100);
+}
 
-  const totalOvertimeHours = calculations.reduce(
-    (s, c) => s + c.overtimeHours,
-    0,
-  );
-  // 30% extra on overtime hours
-  return totalOvertimeHours * hourlyRate * 0.3;
+export interface WeekExtraResult {
+  standardPay: number;
+  extraPay: number;
+  totalEarned: number;
+  weekdayNormalHours: number;
+  weekdayOvertimeHours: number;
+  weekdayOvertimePay: number;
+  saturdayHours: number;
+  saturdayPay: number;
+  sundayHours: number;
+  sundayPay: number;
+  nightPay: number;
+  travelPay: number;
+  weeklyBonus: number;
+  totalHours: number;
+  overtimeTriggered: boolean;
+  // Legacy fields for backward compat
+  overtimePay: number;
+  toeslagenPay: number;
+  weekendSupplementPay: number;
+}
+
+/**
+ * Berekent wat je extra hebt verdiend boven je standaardloon (24u) deze week.
+ * Inclusief gedetailleerde breakdown per categorie (zaterdag/zondag/overuren).
+ *
+ * Rekenregel (CAO Beroepsgoederenvervoer 2026, parttime 24u):
+ *  - Zaterdag altijd 150%, zondag altijd 200% — geen extra 30%.
+ *  - Weekend-uren tellen mee voor de 24u. Daarna pas +30% op doordeweekse overuren.
+ *  - Weekdag normaal  = max(0, 24 − satUren − zonUren)
+ *  - Weekdag overuren = weekdagUren − weekdag normaal
+ */
+export function calculateWeekExtra(
+  calculations: DayCalculation[],
+  settings: Settings,
+): WeekExtraResult {
+  const rate = settings.hourlyRate;
+  const standardPay = 24 * rate;
+
+  // Gebruik de CAO-correcte splits
+  const {
+    satHours,
+    sunHours,
+    weekdayNormalHours,
+    weekdayOvertimeHours,
+    totalHours,
+  } = splitWeekHours(calculations);
+
+  // +30% extra op doordeweekse overuren (niet op weekend)
+  const weeklyBonus =
+    totalHours > 24
+      ? weekdayOvertimeHours * rate * (settings.weeklyOvertimeBonusPct / 100)
+      : 0;
+
+  const totalEarned =
+    calculations.reduce((s, c) => s + c.totalEarned, 0) + weeklyBonus;
+  const extraPay = Math.max(0, totalEarned - standardPay);
+
+  // Pay amounts per categorie
+  const satCalcs = calculations.filter((c) => c.dayOfWeek === 6);
+  const sunCalcs = calculations.filter((c) => c.dayOfWeek === 0);
+
+  const saturdayPay = satCalcs.reduce((s, c) => s + c.basePay, 0);
+  const sundayPay = sunCalcs.reduce((s, c) => s + c.basePay, 0);
+  const nightPay = calculations.reduce((s, c) => s + c.eveningNightPay, 0);
+  const travelPay = calculations.reduce((s, c) => s + c.travelAllowance, 0);
+
+  // Doordeweeks overuren: 100% basis + 30% bonus = 130%
+  const weekdayOvertimePay = weekdayOvertimeHours * rate + weeklyBonus;
+
+  const weekendSupplementPay = calculations.reduce((s, c) => {
+    if (c.dayOfWeek === 6)
+      return s + c.workedHours * rate * ((settings.saturdayPct - 100) / 100);
+    if (c.dayOfWeek === 0)
+      return s + c.workedHours * rate * ((settings.sundayPct - 100) / 100);
+    return s;
+  }, 0);
+
+  return {
+    standardPay,
+    extraPay,
+    totalEarned,
+    weekdayNormalHours,
+    weekdayOvertimeHours,
+    weekdayOvertimePay,
+    saturdayHours: satHours,
+    saturdayPay,
+    sundayHours: sunHours,
+    sundayPay,
+    nightPay,
+    travelPay,
+    weeklyBonus,
+    totalHours,
+    overtimeTriggered: totalHours > 24 && weekdayOvertimeHours > 0,
+    // Legacy
+    overtimePay: 0,
+    toeslagenPay: nightPay,
+    weekendSupplementPay,
+  };
+}
+
+/**
+ * Exporteer weekdata als CSV en download via browser.
+ */
+export function exportWeekCSV(
+  weekDates: Date[],
+  calculations: DayCalculation[],
+  weekNum: number,
+  settings: Settings,
+): void {
+  const DAY_NAMES = [
+    "Zondag",
+    "Maandag",
+    "Dinsdag",
+    "Woensdag",
+    "Donderdag",
+    "Vrijdag",
+    "Zaterdag",
+  ];
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString("nl-NL", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+  const eur = (n: number) => n.toFixed(2).replace(".", ",");
+  const hrs = (n: number) => n.toFixed(2).replace(".", ",");
+
+  const headers = [
+    "Datum",
+    "Dag",
+    "Gewerkte uren (na pauze)",
+    "Dagloon",
+    "Nachttoeslag",
+    "Reiskosten",
+    "Totaal dag",
+  ];
+
+  const rows = weekDates.map((date, i) => {
+    const c = calculations[i];
+    if (!c.hasData) {
+      return [
+        formatDate(date),
+        DAY_NAMES[date.getDay()],
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+      ];
+    }
+    return [
+      formatDate(date),
+      DAY_NAMES[date.getDay()],
+      hrs(c.workedHours),
+      eur(c.basePay),
+      eur(c.eveningNightPay),
+      eur(c.travelAllowance),
+      eur(c.totalEarned),
+    ];
+  });
+
+  const extra = calculateWeekExtra(calculations, settings);
+
+  const summaryRows = [
+    [],
+    ["WEEK SAMENVATTING (CAO Beroepsgoederenvervoer 2026)"],
+    ["Totaal gewerkte uren", hrs(extra.totalHours)],
+    [
+      `Doordeweeks normaal (${formatHours(extra.weekdayNormalHours)} à 100%)`,
+      eur(extra.weekdayNormalHours * settings.hourlyRate),
+    ],
+    [
+      `Doordeweeks overuren (${formatHours(extra.weekdayOvertimeHours)} à 130%)`,
+      eur(extra.weekdayOvertimePay),
+    ],
+    [
+      `Zaterdag (${formatHours(extra.saturdayHours)} à ${settings.saturdayPct}%)`,
+      eur(extra.saturdayPay),
+    ],
+    [
+      `Zondag (${formatHours(extra.sundayHours)} à ${settings.sundayPct}%)`,
+      eur(extra.sundayPay),
+    ],
+    ["Weekbonus +30% (alleen doordeweekse overuren)", eur(extra.weeklyBonus)],
+    ["Nachttoeslag", eur(extra.nightPay)],
+    ["Reiskosten", eur(extra.travelPay)],
+    ["", ""],
+    ["Standaardloon (24u basis)", eur(extra.standardPay)],
+    ["Extra verdiend (uitbetaling volgende periode)", eur(extra.extraPay)],
+  ];
+
+  const csvEscape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+
+  const csvLines = [
+    `Week ${weekNum} - Loon Overzicht`,
+    "",
+    headers.map(csvEscape).join(";"),
+    ...rows.map((r) => r.map(csvEscape).join(";")),
+    [],
+    ...summaryRows.map((r) => r.map((v) => csvEscape(String(v))).join(";")),
+  ];
+
+  const csv = csvLines.join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `week${weekNum}_loon_overzicht.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Berekent een schatting van het nettoloon na alle werknemersinhouding.
+ */
+export function calculateNetPay(grossPay: number, settings: Settings): number {
+  const deductions =
+    grossPay * (settings.pensionPct / 100) +
+    grossPay * (settings.wiaHiaatPct / 100) +
+    grossPay * (settings.soobPct / 100) +
+    grossPay * (settings.whkPct / 100) +
+    grossPay * (settings.loonheffingPct / 100);
+  return Math.max(0, grossPay - deductions);
+}
+
+/**
+ * Berekent de huidige 4-weken periode op basis van een anker-datum.
+ */
+export function getCurrentPeriod(today: Date = new Date()): {
+  periodNumber: number;
+  startDate: Date;
+  endDate: Date;
+  nextStartDate: Date;
+  nextEndDate: Date;
+} {
+  const anchor = new Date(2025, 11, 29);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const daysDiff = Math.floor((today.getTime() - anchor.getTime()) / msPerDay);
+  const periodIndex = Math.floor(daysDiff / 28);
+  const periodStart = new Date(anchor);
+  periodStart.setDate(anchor.getDate() + periodIndex * 28);
+  const periodEnd = new Date(periodStart);
+  periodEnd.setDate(periodStart.getDate() + 27);
+  const nextStart = new Date(periodStart);
+  nextStart.setDate(periodStart.getDate() + 28);
+  const nextEnd = new Date(nextStart);
+  nextEnd.setDate(nextStart.getDate() + 27);
+
+  return {
+    periodNumber: periodIndex + 1,
+    startDate: periodStart,
+    endDate: periodEnd,
+    nextStartDate: nextStart,
+    nextEndDate: nextEnd,
+  };
 }
 
 export function formatHours(hours: number): string {
@@ -168,6 +466,14 @@ export function formatCurrency(amount: number): string {
     currency: "EUR",
     minimumFractionDigits: 2,
   }).format(amount);
+}
+
+export function formatDutchDate(date: Date): string {
+  return date.toLocaleDateString("nl-NL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export function getWeekDates(weekOffset: number): Date[] {

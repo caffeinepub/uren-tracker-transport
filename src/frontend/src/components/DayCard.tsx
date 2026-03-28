@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Car, Clock, Coffee, Euro, Percent, TrendingUp } from "lucide-react";
+import { Car, Clock, Coffee, Euro, Percent } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback } from "react";
 import type { DayEntry } from "../types";
@@ -58,7 +58,12 @@ export function DayCard({
     [entry, onUpdate],
   );
 
-  const weekendLabel = date.getDay() === 6 ? "Zaterdag +50%" : "Zondag +200%";
+  // Correct badge labels: Zaterdag = +50% toeslag (150% totaal), Zondag = +100% toeslag (200% totaal)
+  const weekendLabel = date.getDay() === 6 ? "Zaterdag +50%" : "Zondag +100%";
+
+  const breakMinutes = entry.breakMinutes || 0;
+  const grossHours =
+    breakMinutes > 0 ? calc.workedHours + breakMinutes / 60 : null;
 
   return (
     <motion.div
@@ -150,19 +155,34 @@ export function DayCard({
           {/* Results */}
           {calc.hasData && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-3 border-t border-border">
-              <ResultRow
-                icon={<Clock className="w-3.5 h-3.5" />}
-                label="Werktijd"
-                value={formatHours(calc.workedHours)}
-              />
-              <ResultRow
-                icon={<TrendingUp className="w-3.5 h-3.5" />}
-                label="Overuren"
-                value={
-                  calc.overtimeHours > 0 ? formatHours(calc.overtimeHours) : "—"
-                }
-                highlight={calc.overtimeHours > 0}
-              />
+              {/* Break deduction breakdown */}
+              {grossHours !== null ? (
+                <>
+                  <ResultRow
+                    icon={<Clock className="w-3.5 h-3.5" />}
+                    label="Bruto uren"
+                    value={formatHours(grossHours)}
+                  />
+                  <ResultRow
+                    icon={<Coffee className="w-3.5 h-3.5" />}
+                    label="Pauze"
+                    value={`-${breakMinutes} min`}
+                    deduction
+                  />
+                  <ResultRow
+                    icon={<Clock className="w-3.5 h-3.5" />}
+                    label="Netto werktijd"
+                    value={formatHours(calc.workedHours)}
+                    highlight
+                  />
+                </>
+              ) : (
+                <ResultRow
+                  icon={<Clock className="w-3.5 h-3.5" />}
+                  label="Werktijd"
+                  value={formatHours(calc.workedHours)}
+                />
+              )}
               <ResultRow
                 icon={<Euro className="w-3.5 h-3.5" />}
                 label="Bruto verdienste"
@@ -186,7 +206,7 @@ export function DayCard({
               />
               {calc.eveningNightPay > 0 && (
                 <ResultRow
-                  icon={<TrendingUp className="w-3.5 h-3.5" />}
+                  icon={<Clock className="w-3.5 h-3.5" />}
                   label="Avond/Nacht"
                   value={`+${formatCurrency(calc.eveningNightPay)}`}
                 />
@@ -205,17 +225,33 @@ interface ResultRowProps {
   value: string;
   highlight?: boolean;
   large?: boolean;
+  deduction?: boolean;
 }
 
-function ResultRow({ icon, label, value, highlight, large }: ResultRowProps) {
+function ResultRow({
+  icon,
+  label,
+  value,
+  highlight,
+  large,
+  deduction,
+}: ResultRowProps) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-muted-foreground shrink-0">{icon}</span>
-      <span className="text-[12px] text-muted-foreground flex-1">{label}</span>
+      <span
+        className={`shrink-0 ${deduction ? "text-red-400" : "text-muted-foreground"}`}
+      >
+        {icon}
+      </span>
+      <span
+        className={`text-[12px] flex-1 ${deduction ? "text-red-400" : "text-muted-foreground"}`}
+      >
+        {label}
+      </span>
       <span
         className={`font-semibold tabular-nums ${
           large ? "text-[14px]" : "text-[13px]"
-        } ${highlight ? "text-orange" : "text-foreground"}`}
+        } ${deduction ? "text-red-400" : highlight ? "text-orange" : "text-foreground"}`}
       >
         {value}
       </span>
