@@ -47,6 +47,9 @@ export interface Settings {
   whkPct: number; // Gediff. premie Whk 0.52%
   loonheffingPct: number; // Loonheffing bijzonder tarief 40.20%
   keuzebudgetPct: number; // Keuzebudget opbouw 100%
+  // Heffingskortingen (jaarlijks bedrag, wordt wekelijks verrekend)
+  algHeffingskorting: number; // Algemene heffingskorting 2026
+  arbeidskorting: number; // Arbeidskorting 2026
 }
 
 export interface WeekData {

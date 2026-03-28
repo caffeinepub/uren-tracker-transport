@@ -23,6 +23,8 @@ export const DEFAULT_SETTINGS: Settings = {
   whkPct: 0.52,
   loonheffingPct: 40.2,
   keuzebudgetPct: 100,
+  algHeffingskorting: 3068, // 2026 max voor laag inkomen (< ~€24k)
+  arbeidskorting: 5599, // 2026 max (bereikt rond €24k, daalt daarna)
 };
 
 function loadWeekData(): WeekData {

@@ -10,12 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BookOpen, Moon, Save } from "lucide-react";
+import { BadgeCheck, BookOpen, Moon, Save } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DEFAULT_SETTINGS } from "../hooks/useWeekData";
 import type { Settings } from "../types";
+import { formatCurrency } from "../utils/calculations";
 
 interface SettingsPageProps {
   settings: Settings;
@@ -81,6 +82,33 @@ const CAO_TABLE = [
   },
 ];
 
+const HEFFINGSKORTING_TABLE = [
+  {
+    inkomen: "< €10.000",
+    algKorting: "€ 3.068",
+    arbeidskorting: "€ 0 – 3.000",
+    opmerking: "Volle algemene korting, arbeidskorting loopt op",
+  },
+  {
+    inkomen: "€ 10.000 – €24.000",
+    algKorting: "€ 3.068 (max)",
+    arbeidskorting: "€ 3.000 – 5.599",
+    opmerking: "Volle algemene korting + arbeidskorting stijgt naar max",
+  },
+  {
+    inkomen: "€ 24.000 – €38.000",
+    algKorting: "€ 3.068 (max)",
+    arbeidskorting: "€ 5.599 (max)",
+    opmerking: "Beide kortingen op maximum — optimale situatie",
+  },
+  {
+    inkomen: "> €38.000",
+    algKorting: "Daalt af",
+    arbeidskorting: "Daalt af",
+    opmerking: "Kortingen nemen geleidelijk af bij hoger inkomen",
+  },
+];
+
 export function SettingsPage({ settings, onSave }: SettingsPageProps) {
   const [form, setForm] = useState<Settings>(settings);
 
@@ -97,6 +125,10 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
     onSave(DEFAULT_SETTINGS);
     toast.success("Standaardwaarden hersteld");
   };
+
+  const algHeffingskorting = form.algHeffingskorting ?? 3068;
+  const arbeidskorting = form.arbeidskorting ?? 5599;
+  const weeklyHeffingskorting = (algHeffingskorting + arbeidskorting) / 52;
 
   return (
     <motion.div
@@ -401,6 +433,166 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               onChange={(v) => set("keuzebudgetPct", v)}
             />
           </div>
+        </div>
+      </Card>
+
+      {/* Heffingskorting 2026 */}
+      <Card className="border-border shadow-card rounded-xl overflow-hidden">
+        <div
+          className="px-5 py-4 border-b border-border flex items-center gap-2"
+          style={{ borderBottomColor: "oklch(0.82 0.12 145)" }}
+        >
+          <BadgeCheck
+            className="w-4 h-4"
+            style={{ color: "oklch(0.42 0.16 145)" }}
+          />
+          <div>
+            <h3 className="font-semibold text-foreground text-[15px]">
+              Heffingskorting 2026
+            </h3>
+            <p className="text-muted-foreground text-[13px] mt-0.5">
+              Belastingkorting die je nettoloon verhoogt — voordeel bij laag
+              inkomen
+            </p>
+          </div>
+          <div
+            className="ml-auto text-right"
+            style={{ color: "oklch(0.40 0.16 145)" }}
+          >
+            <p className="text-[11px] font-bold uppercase tracking-wide">
+              Wekelijks voordeel
+            </p>
+            <p className="text-[17px] font-bold tabular-nums">
+              +{formatCurrency(weeklyHeffingskorting)}
+            </p>
+          </div>
+        </div>
+        <div className="p-5 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <SettingField
+              label="Algemene heffingskorting (€/jaar)"
+              hint="2026 max: €3.068 — volle korting bij laag inkomen (< ~€24k)"
+              step="1"
+              value={algHeffingskorting}
+              onChange={(v) => set("algHeffingskorting", v)}
+            />
+            <SettingField
+              label="Arbeidskorting (€/jaar)"
+              hint="2026 max: €5.599 — loopt op met meer werken, max rond €24k inkomen"
+              step="1"
+              value={arbeidskorting}
+              onChange={(v) => set("arbeidskorting", v)}
+            />
+          </div>
+
+          {/* Inkomensgrafiek uitleg */}
+          <div
+            className="rounded-xl border p-4"
+            style={{
+              background: "oklch(0.97 0.04 145)",
+              borderColor: "oklch(0.86 0.10 145)",
+            }}
+          >
+            <p
+              className="text-[12px] font-bold uppercase tracking-wide mb-3"
+              style={{ color: "oklch(0.42 0.14 145)" }}
+            >
+              Jouw situatie (laag inkomen ~€20k–25k)
+            </p>
+            <div className="flex items-start gap-3 mb-2">
+              <span
+                className="mt-0.5 text-[16px] leading-none"
+                style={{ color: "oklch(0.42 0.18 145)" }}
+              >
+                ✓
+              </span>
+              <p
+                className="text-[13px]"
+                style={{ color: "oklch(0.32 0.12 145)" }}
+              >
+                <strong>Algemene heffingskorting:</strong> bij een inkomen onder
+                ~€24.000 ontvang je de volledige €3.068 per jaar. Dit is een
+                vaste korting op de loonheffing die iedere werkende krijgt.
+              </p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span
+                className="mt-0.5 text-[16px] leading-none"
+                style={{ color: "oklch(0.42 0.18 145)" }}
+              >
+                ✓
+              </span>
+              <p
+                className="text-[13px]"
+                style={{ color: "oklch(0.32 0.12 145)" }}
+              >
+                <strong>Arbeidskorting:</strong> stijgt met je inkomen tot een
+                maximum van €5.599 bij ~€24.000. Daarna daalt hij geleidelijk
+                boven ~€38.000. Als 60% parttimer ben jij precies in de optimale
+                zone.
+              </p>
+            </div>
+          </div>
+
+          {/* Inkomenstabel */}
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead className="text-[12px] font-semibold">
+                    Inkomen/jaar
+                  </TableHead>
+                  <TableHead className="text-[12px] font-semibold">
+                    Alg. heffingskorting
+                  </TableHead>
+                  <TableHead className="text-[12px] font-semibold">
+                    Arbeidskorting
+                  </TableHead>
+                  <TableHead className="text-[12px] font-semibold">
+                    Situatie
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {HEFFINGSKORTING_TABLE.map((row, i) => (
+                  <TableRow
+                    key={row.inkomen}
+                    className={
+                      i === 1 || i === 2
+                        ? "bg-green-50"
+                        : i % 2 === 0
+                          ? "bg-background"
+                          : "bg-muted/20"
+                    }
+                  >
+                    <TableCell className="text-[13px] font-semibold text-foreground py-2.5">
+                      {row.inkomen}
+                    </TableCell>
+                    <TableCell
+                      className="text-[13px] font-mono tabular-nums font-semibold py-2.5"
+                      style={{ color: "oklch(0.40 0.16 145)" }}
+                    >
+                      {row.algKorting}
+                    </TableCell>
+                    <TableCell
+                      className="text-[13px] font-mono tabular-nums font-semibold py-2.5"
+                      style={{ color: "oklch(0.40 0.16 145)" }}
+                    >
+                      {row.arbeidskorting}
+                    </TableCell>
+                    <TableCell className="text-[12px] text-muted-foreground py-2.5">
+                      {row.opmerking}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-[12px] text-muted-foreground">
+            Bron: Belastingdienst 2026. De kortingen worden via de
+            loonheffingstabel maandelijks/periodiek verrekend door de werkgever.
+            Bij parttime en laag inkomen profiteer je maximaal.
+          </p>
         </div>
       </Card>
 

@@ -404,6 +404,8 @@ export function exportWeekCSV(
 
 /**
  * Berekent een schatting van het nettoloon na alle werknemersinhouding.
+ * De heffingskorting (algemene + arbeidskorting) wordt als belastingkorting
+ * wekelijks verrekend en verlaagt het te betalen bedrag.
  */
 export function calculateNetPay(grossPay: number, settings: Settings): number {
   const deductions =
@@ -412,7 +414,14 @@ export function calculateNetPay(grossPay: number, settings: Settings): number {
     grossPay * (settings.soobPct / 100) +
     grossPay * (settings.whkPct / 100) +
     grossPay * (settings.loonheffingPct / 100);
-  return Math.max(0, grossPay - deductions);
+
+  // Heffingskorting: wekelijks aandeel van jaarlijkse korting
+  // Verlaagt de loonheffing — wordt verrekend als credit op het nettoloon
+  const algHeffingskorting = settings.algHeffingskorting ?? 3068;
+  const arbeidskorting = settings.arbeidskorting ?? 5599;
+  const weeklyHeffingskorting = (algHeffingskorting + arbeidskorting) / 52;
+
+  return Math.max(0, grossPay - deductions + weeklyHeffingskorting);
 }
 
 /**

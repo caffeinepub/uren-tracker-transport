@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Award,
+  BadgeCheck,
   Car,
   Clock,
   Download,
@@ -76,6 +77,10 @@ export function WeekTotals({
   const netPay = calculateNetPay(grandTotal, settings);
   const hasDelayedItems = weekdayOvertimeHours > 0 || totals.nightHours > 0;
 
+  const algHeffingskorting = settings.algHeffingskorting ?? 3068;
+  const arbeidskorting = settings.arbeidskorting ?? 5599;
+  const weeklyHeffingskorting = (algHeffingskorting + arbeidskorting) / 52;
+
   const items = [
     {
       icon: <Clock className="w-4 h-4" />,
@@ -85,6 +90,7 @@ export function WeekTotals({
         ? `24u normaal + ${formatHours(weekdayOvertimeHours)} overuren`
         : `${formatHours(weekdayNormalHours)} à 100%`,
       highlight: above24,
+      green: false,
     },
     {
       icon: <TrendingUp className="w-4 h-4" />,
@@ -96,6 +102,7 @@ export function WeekTotals({
           : "geen",
       highlight: weekdayOvertimeHours > 0,
       delayed: weekdayOvertimeHours > 0,
+      green: false,
     },
     {
       icon: <Clock className="w-4 h-4" />,
@@ -103,6 +110,7 @@ export function WeekTotals({
       value: formatHours(saturdayHours),
       sub: saturdayHours > 0 ? "altijd 150%" : "geen",
       highlight: saturdayHours > 0,
+      green: false,
     },
     {
       icon: <Clock className="w-4 h-4" />,
@@ -110,6 +118,7 @@ export function WeekTotals({
       value: formatHours(sundayHours),
       sub: sundayHours > 0 ? "altijd 200%" : "geen",
       highlight: sundayHours > 0,
+      green: false,
     },
     {
       icon: <Moon className="w-4 h-4" />,
@@ -121,6 +130,7 @@ export function WeekTotals({
           : "geen",
       highlight: totals.nightHours > 0,
       delayed: totals.nightHours > 0,
+      green: false,
     },
     {
       icon: <Euro className="w-4 h-4" />,
@@ -132,6 +142,7 @@ export function WeekTotals({
           : "incl. alles",
       highlight: true,
       large: true,
+      green: false,
     },
     {
       icon: <Percent className="w-4 h-4" />,
@@ -145,26 +156,38 @@ export function WeekTotals({
         ]
           .filter(Boolean)
           .join(" · ") || "avond/nacht",
+      green: false,
     },
     {
       icon: <Car className="w-4 h-4" />,
       label: "Reiskosten",
       value: formatCurrency(totals.travelTotal),
       sub: "vergoeding",
+      green: false,
     },
     {
       icon: <Percent className="w-4 h-4" />,
       label: "Vakantiegeld",
       value: formatCurrency(totals.vacationPayAccrual),
       sub: `${settings.vacationPayPct}% opbouw`,
+      green: false,
+    },
+    {
+      icon: <BadgeCheck className="w-4 h-4" />,
+      label: "Heffingskorting",
+      value: formatCurrency(weeklyHeffingskorting),
+      sub: "alg. + arbeidskorting (week)",
+      highlight: false,
+      green: true,
     },
     {
       icon: <Wallet className="w-4 h-4" />,
       label: "Netto schatting",
       value: formatCurrency(netPay),
-      sub: "na inhoudingen",
+      sub: "na inhoudingen + korting",
       highlight: true,
       large: true,
+      green: false,
     },
   ];
 
@@ -309,11 +332,69 @@ export function WeekTotals({
             </div>
           </div>
 
+          {/* Heffingskorting banner */}
+          <div
+            className="rounded-xl p-4 border mb-5 flex items-center gap-4"
+            style={{
+              background: "oklch(0.96 0.06 145)",
+              borderColor: "oklch(0.82 0.12 145)",
+            }}
+          >
+            <BadgeCheck
+              className="w-5 h-5 shrink-0"
+              style={{ color: "oklch(0.42 0.16 145)" }}
+            />
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-[11px] font-bold uppercase tracking-wide"
+                style={{ color: "oklch(0.42 0.14 145)" }}
+              >
+                Heffingskorting 2026
+              </p>
+              <p
+                className="text-[13px] font-semibold mt-0.5"
+                style={{ color: "oklch(0.30 0.14 145)" }}
+              >
+                Algemene heffingskorting (€
+                {algHeffingskorting.toLocaleString("nl-NL")}/jr) +
+                Arbeidskorting (€{arbeidskorting.toLocaleString("nl-NL")}/jr)
+              </p>
+              <p
+                className="text-[12px] mt-0.5"
+                style={{ color: "oklch(0.46 0.12 145)" }}
+              >
+                Wekelijks voordeel:{" "}
+                <strong>{formatCurrency(weeklyHeffingskorting)}</strong> —
+                verlaagt je loonheffing, verhoogt je nettoloon
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p
+                className="text-xl font-bold tabular-nums"
+                style={{ color: "oklch(0.36 0.18 145)" }}
+              >
+                +{formatCurrency(weeklyHeffingskorting)}
+              </p>
+              <p
+                className="text-[11px]"
+                style={{ color: "oklch(0.50 0.12 145)" }}
+              >
+                per week
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-10 gap-4">
             {items.map((item) => (
               <div key={item.label} className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
-                  {item.icon}
+                  {item.green ? (
+                    <span style={{ color: "oklch(0.50 0.16 145)" }}>
+                      {item.icon}
+                    </span>
+                  ) : (
+                    item.icon
+                  )}
                   <span className="text-[11px] font-medium uppercase tracking-wide">
                     {item.label}
                   </span>
@@ -330,7 +411,14 @@ export function WeekTotals({
                 <p
                   className={`font-bold tabular-nums ${
                     item.large ? "text-xl" : "text-base"
-                  } ${item.highlight ? "text-orange" : "text-foreground"}`}
+                  }`}
+                  style={{
+                    color: item.green
+                      ? "oklch(0.40 0.18 145)"
+                      : item.highlight
+                        ? "var(--orange)"
+                        : "var(--foreground)",
+                  }}
                 >
                   {item.value}
                 </p>
