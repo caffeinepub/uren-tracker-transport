@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BadgeCheck, BookOpen, Moon, Save } from "lucide-react";
+import { BadgeCheck, BookOpen, Moon, PiggyBank, Save } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -32,10 +32,10 @@ const NACHT_TABLE = [
     opmerking: "Normaal uurloon",
   },
   {
-    tijdstip: "21:00 – 05:00 uur",
+    tijdstip: "21:00 \u2013 05:00 uur",
     toeslagPct: "19% (CAO min.) of hoger",
     totaalPct: "119% of 130%",
-    opmerking: "Nachttoeslag – configureerbaar",
+    opmerking: "Nachttoeslag \u2013 configureerbaar",
   },
   {
     tijdstip: "Overige toeslagen",
@@ -49,7 +49,7 @@ const CAO_TABLE = [
   {
     label: "Vakantiegeld",
     pct: "11,84%",
-    desc: "CAO 2026 — opbouw incl. toeslagen, uitbetaald in mei",
+    desc: "CAO 2026 \u2014 opbouw incl. toeslagen, uitbetaald in mei",
   },
   {
     label: "Pensioen",
@@ -85,25 +85,25 @@ const CAO_TABLE = [
 
 const HEFFINGSKORTING_TABLE = [
   {
-    inkomen: "< €10.000",
-    algKorting: "€ 3.068",
-    arbeidskorting: "€ 0 – 3.000",
+    inkomen: "< \u20ac10.000",
+    algKorting: "\u20ac 3.068",
+    arbeidskorting: "\u20ac 0 \u2013 3.000",
     opmerking: "Volle algemene korting, arbeidskorting loopt op",
   },
   {
-    inkomen: "€ 10.000 – €24.000",
-    algKorting: "€ 3.068 (max)",
-    arbeidskorting: "€ 3.000 – 5.599",
+    inkomen: "\u20ac 10.000 \u2013 \u20ac24.000",
+    algKorting: "\u20ac 3.068 (max)",
+    arbeidskorting: "\u20ac 3.000 \u2013 5.599",
     opmerking: "Volle algemene korting + arbeidskorting stijgt naar max",
   },
   {
-    inkomen: "€ 24.000 – €38.000",
-    algKorting: "€ 3.068 (max)",
-    arbeidskorting: "€ 5.599 (max)",
-    opmerking: "Beide kortingen op maximum — optimale situatie",
+    inkomen: "\u20ac 24.000 \u2013 \u20ac38.000",
+    algKorting: "\u20ac 3.068 (max)",
+    arbeidskorting: "\u20ac 5.599 (max)",
+    opmerking: "Beide kortingen op maximum \u2014 optimale situatie",
   },
   {
-    inkomen: "> €38.000",
+    inkomen: "> \u20ac38.000",
     algKorting: "Daalt af",
     arbeidskorting: "Daalt af",
     opmerking: "Kortingen nemen geleidelijk af bij hoger inkomen",
@@ -113,7 +113,7 @@ const HEFFINGSKORTING_TABLE = [
 export function SettingsPage({ settings, onSave }: SettingsPageProps) {
   const [form, setForm] = useState<Settings>(settings);
 
-  const set = (key: keyof Settings, value: number | boolean) =>
+  const set = (key: keyof Settings, value: number | boolean | null) =>
     setForm((p) => ({ ...p, [key]: value }));
 
   const handleSave = () => {
@@ -151,15 +151,15 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         <div className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <SettingField
-              label="Uurloon (€)"
-              hint="Loonschaal D6 — standaard €20,24"
+              label="Uurloon (\u20ac)"
+              hint="Loonschaal D6 \u2014 standaard \u20ac20,24"
               step="0.01"
               value={form.hourlyRate}
               onChange={(v) => set("hourlyRate", v)}
             />
             <SettingField
-              label="Reiskosten per dag (€)"
-              hint="Standaard €10,12 (32 km woon-werk)"
+              label="Reiskosten per dag (\u20ac)"
+              hint="Standaard \u20ac10,12 (32 km woon-werk)"
               step="0.01"
               value={form.travelAllowancePerDay}
               onChange={(v) => set("travelAllowancePerDay", v)}
@@ -182,13 +182,13 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <SettingField
               label="Zaterdag (%)"
-              hint="Standaard 150% — je verdient 1,5× uurloon"
+              hint="Standaard 150% \u2014 je verdient 1,5\u00d7 uurloon"
               value={form.saturdayPct}
               onChange={(v) => set("saturdayPct", v)}
             />
             <SettingField
               label="Zondag (%)"
-              hint="Standaard 200% — je verdient 2× uurloon"
+              hint="Standaard 200% \u2014 je verdient 2\u00d7 uurloon"
               value={form.sundayPct}
               onChange={(v) => set("sundayPct", v)}
             />
@@ -224,7 +224,7 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         </div>
       </Card>
 
-      {/* Nachttoeslag – uitgebreid configureerbaar */}
+      {/* Nachttoeslag */}
       <Card className="border-border shadow-card rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex items-center gap-2">
           <Moon className="w-4 h-4 text-blue-400" />
@@ -261,8 +261,6 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               onChange={(v) => set("nightEndHour", v)}
             />
           </div>
-
-          {/* Nachttoeslag tabel */}
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
@@ -311,21 +309,20 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         </div>
       </Card>
 
-      {/* Avondtoeslag (optioneel) */}
+      {/* Avondtoeslag */}
       <Card className="border-border shadow-card rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <h3 className="font-semibold text-foreground text-[15px]">
             Avondtoeslag (optioneel)
           </h3>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            Extra % voor uren tussen 18:00 en de nachttoeslag-begintijd. Stel op
-            0 als niet van toepassing.
+            Extra % voor uren tussen 18:00 en de nachttoeslag-begintijd.
           </p>
         </div>
         <div className="p-5">
           <div className="max-w-xs">
             <SettingField
-              label="Avondtoeslag 18:00 – nacht (+%)"
+              label="Avondtoeslag 18:00 \u2013 nacht (+%)"
               hint="Standaard 0% (niet verplicht CAO)"
               step="0.5"
               value={form.eveningSupplementPct}
@@ -362,8 +359,7 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
             CAO Inhoudingen (werknemersaandeel)
           </h3>
           <p className="text-muted-foreground text-[13px] mt-0.5">
-            Wettelijk vastgestelde inhoudingen op het bruto loon. Pas aan als
-            jouw strook afwijkt.
+            Wettelijk vastgestelde inhoudingen op het bruto loon.
           </p>
         </div>
         <div className="p-5">
@@ -450,7 +446,7 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               </Label>
               {form.keuzebudgetEnabled && (
                 <p className="text-[12px] text-muted-foreground mt-0.5">
-                  Keuzebudget 100% wordt meegenomen — kan belastbaar loon
+                  Keuzebudget 100% wordt meegenomen \u2014 kan belastbaar loon
                   tijdelijk verlagen.
                 </p>
               )}
@@ -474,8 +470,7 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               Heffingskorting 2026
             </h3>
             <p className="text-muted-foreground text-[13px] mt-0.5">
-              Belastingkorting die je nettoloon verhoogt — voordeel bij laag
-              inkomen
+              Belastingkorting die je nettoloon verhoogt
             </p>
           </div>
           <div
@@ -493,22 +488,20 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         <div className="p-5 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <SettingField
-              label="Algemene heffingskorting (€/jaar)"
-              hint="2026 max: €3.068 — volle korting bij laag inkomen (< ~€24k)"
+              label="Algemene heffingskorting (\u20ac/jaar)"
+              hint="2026 max: \u20ac3.068 \u2014 volle korting bij laag inkomen (< ~\u20ac24k)"
               step="1"
               value={algHeffingskorting}
               onChange={(v) => set("algHeffingskorting", v)}
             />
             <SettingField
-              label="Arbeidskorting (€/jaar)"
-              hint="2026 max: €5.599 — loopt op met meer werken, max rond €24k inkomen"
+              label="Arbeidskorting (\u20ac/jaar)"
+              hint="2026 max: \u20ac5.599 \u2014 loopt op met meer werken"
               step="1"
               value={arbeidskorting}
               onChange={(v) => set("arbeidskorting", v)}
             />
           </div>
-
-          {/* Inkomensgrafiek uitleg */}
           <div
             className="rounded-xl border p-4"
             style={{
@@ -520,22 +513,21 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               className="text-[12px] font-bold uppercase tracking-wide mb-3"
               style={{ color: "oklch(0.42 0.14 145)" }}
             >
-              Jouw situatie (laag inkomen ~€20k–25k)
+              Jouw situatie (laag inkomen ~\u20ac20k\u201325k)
             </p>
             <div className="flex items-start gap-3 mb-2">
               <span
                 className="mt-0.5 text-[16px] leading-none"
                 style={{ color: "oklch(0.42 0.18 145)" }}
               >
-                ✓
+                \u2713
               </span>
               <p
                 className="text-[13px]"
                 style={{ color: "oklch(0.32 0.12 145)" }}
               >
                 <strong>Algemene heffingskorting:</strong> bij een inkomen onder
-                ~€24.000 ontvang je de volledige €3.068 per jaar. Dit is een
-                vaste korting op de loonheffing die iedere werkende krijgt.
+                ~\u20ac24.000 ontvang je de volledige \u20ac3.068 per jaar.
               </p>
             </div>
             <div className="flex items-start gap-3">
@@ -543,21 +535,17 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
                 className="mt-0.5 text-[16px] leading-none"
                 style={{ color: "oklch(0.42 0.18 145)" }}
               >
-                ✓
+                \u2713
               </span>
               <p
                 className="text-[13px]"
                 style={{ color: "oklch(0.32 0.12 145)" }}
               >
-                <strong>Arbeidskorting:</strong> stijgt met je inkomen tot een
-                maximum van €5.599 bij ~€24.000. Daarna daalt hij geleidelijk
-                boven ~€38.000. Als 60% parttimer ben jij precies in de optimale
-                zone.
+                <strong>Arbeidskorting:</strong> stijgt met je inkomen tot
+                \u20ac5.599. Als 60% parttimer ben jij in de optimale zone.
               </p>
             </div>
           </div>
-
-          {/* Inkomenstabel */}
           <div className="overflow-x-auto rounded-lg border border-border">
             <Table>
               <TableHeader>
@@ -613,9 +601,87 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
           </div>
           <p className="text-[12px] text-muted-foreground">
             Bron: Belastingdienst 2026. De kortingen worden via de
-            loonheffingstabel maandelijks/periodiek verrekend door de werkgever.
-            Bij parttime en laag inkomen profiteer je maximaal.
+            loonheffingstabel periodiek verrekend.
           </p>
+        </div>
+      </Card>
+
+      {/* Pensioenprognose (Pensioenfonds Vervoer) */}
+      <Card className="border-border shadow-card rounded-xl overflow-hidden">
+        <div
+          className="px-5 py-4 border-b border-border flex items-center gap-2"
+          style={{ borderBottomColor: "oklch(0.82 0.12 55)" }}
+        >
+          <PiggyBank
+            className="w-4 h-4"
+            style={{ color: "oklch(0.55 0.18 145)" }}
+          />
+          <div>
+            <h3 className="font-semibold text-foreground text-[15px]">
+              Pensioenprognose (Pensioenfonds Vervoer)
+            </h3>
+            <p className="text-muted-foreground text-[13px] mt-0.5">
+              Instellingen voor de Jaarprognose-berekeningen
+            </p>
+          </div>
+        </div>
+        <div className="p-5 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <SettingField
+              label="Franchise 2026 (\u20ac)"
+              hint="Standaard \u20ac17.283 \u2014 drempel Pensioenfonds Vervoer 2026"
+              step="1"
+              value={form.pensionFranchise ?? 17283}
+              onChange={(v) => set("pensionFranchise", v)}
+            />
+            <SettingField
+              label="Opbouwpercentage (%)"
+              hint="Pensioenfonds Vervoer 2026: 1,788% van de pensioengrondslag"
+              step="0.001"
+              value={form.pensionBuildupPct ?? 1.788}
+              onChange={(v) => set("pensionBuildupPct", v)}
+            />
+          </div>
+          <div>
+            <Label className="text-[13px] font-medium mb-1.5 block">
+              Pensioengevend jaarsalaris (handmatig, optioneel)
+            </Label>
+            <Input
+              type="number"
+              step="100"
+              min="0"
+              placeholder="Laat leeg voor automatisch (op basis van ingevoerde weken)"
+              value={form.pensiongevingSalaryOverride ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                set(
+                  "pensiongevingSalaryOverride",
+                  val === "" ? null : Number.parseFloat(val) || 0,
+                );
+              }}
+              className="h-10"
+              data-ocid="settings.pension_salary.input"
+            />
+            <p className="text-[12px] text-muted-foreground mt-1">
+              Vul hier je exacte pensioengevend jaarsalaris in als je een
+              nauwkeurigere berekening wilt. Laat leeg om de app automatisch te
+              laten berekenen op basis van ingevoerde uren.
+            </p>
+          </div>
+          <div
+            className="rounded-xl border p-4"
+            style={{
+              background: "oklch(0.97 0.03 55)",
+              borderColor: "oklch(0.87 0.08 55)",
+            }}
+          >
+            <p className="text-[12px]" style={{ color: "oklch(0.42 0.14 55)" }}>
+              <strong>Tip:</strong> De exacte Factor A staat op je{" "}
+              <strong>Uniform Pensioenoverzicht (UPO)</strong> van Pensioenfonds
+              Vervoer, dat jaarlijks in het voorjaar wordt verstuurd. Gebruik
+              dat voor de meest nauwkeurige jaarruimteberekening.
+            </p>
+          </div>
         </div>
       </Card>
 

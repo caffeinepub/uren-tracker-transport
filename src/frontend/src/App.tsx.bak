@@ -4,7 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  ScanLine,
   Settings as SettingsIcon,
   TrendingUp,
   Truck,
@@ -13,13 +12,11 @@ import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { DayCard } from "./components/DayCard";
 import { JaarprognoseTab } from "./components/JaarprognoseTab";
-import { ScanModal } from "./components/ScanModal";
 import { SettingsPage } from "./components/SettingsPage";
 import { SimulationCard } from "./components/SimulationCard";
 import { WeekExtraCard } from "./components/WeekExtraCard";
 import { WeekTotals } from "./components/WeekTotals";
 import { useWeekData } from "./hooks/useWeekData";
-import type { DayEntry } from "./types";
 import {
   calculateDay,
   calculateWeekExtra,
@@ -36,7 +33,6 @@ type Tab = "week" | "jaarprognose" | "instellingen";
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("week");
   const [weekOffset, setWeekOffset] = useState(0);
-  const [scanOpen, setScanOpen] = useState(false);
   const {
     settings,
     updateDay,
@@ -88,12 +84,6 @@ export default function App() {
       addWeekIncome(weekNum, currentWeekYear, grandTotal);
     }
   }, [weekNum, currentWeekYear, grandTotal, addWeekIncome]);
-
-  const handleScanApply = (entries: Record<string, DayEntry>) => {
-    for (const [key, entry] of Object.entries(entries)) {
-      updateDay(key, entry);
-    }
-  };
 
   const weekLabel = `Week ${weekNum}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
 
@@ -236,21 +226,6 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setScanOpen(true)}
-                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg border text-[12px] font-medium transition-colors"
-                  style={{
-                    borderColor: "oklch(0.72 0.165 55 / 40%)",
-                    background: "oklch(0.97 0.03 55)",
-                    color: "oklch(0.45 0.12 55)",
-                  }}
-                  data-ocid="week.scan_button"
-                  title="Scan uitdraai van werkgever"
-                >
-                  <ScanLine className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Scan uitdraai</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => setWeekOffset((w) => w + 1)}
                   className="w-8 h-8 rounded-lg border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
                   data-ocid="week.pagination_next"
@@ -329,12 +304,6 @@ export default function App() {
         </a>
       </footer>
 
-      <ScanModal
-        open={scanOpen}
-        onClose={() => setScanOpen(false)}
-        weekDates={weekDates}
-        onApply={handleScanApply}
-      />
       <Toaster />
     </div>
   );

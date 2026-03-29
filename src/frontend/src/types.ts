@@ -51,6 +51,10 @@ export interface Settings {
   // Heffingskortingen (jaarlijks bedrag, wordt wekelijks verrekend)
   algHeffingskorting: number; // Algemene heffingskorting 2026
   arbeidskorting: number; // Arbeidskorting 2026
+  // Pensioenprognose (Pensioenfonds Vervoer)
+  pensionFranchise: number; // €17.283 default (2026)
+  pensionBuildupPct: number; // 1.788% default (Pensioenfonds Vervoer 2026)
+  pensiongevingSalaryOverride: number | null; // null = auto from app data
 }
 
 export interface WeekData {

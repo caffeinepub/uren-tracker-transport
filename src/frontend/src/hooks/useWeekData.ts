@@ -27,6 +27,10 @@ export const DEFAULT_SETTINGS: Settings = {
   keuzebudgetEnabled: false,
   algHeffingskorting: 3068, // 2026 max voor laag inkomen (< ~€24k)
   arbeidskorting: 5599, // 2026 max (bereikt rond €24k, daalt daarna)
+  // Pensioenprognose
+  pensionFranchise: 17283,
+  pensionBuildupPct: 1.788,
+  pensiongevingSalaryOverride: null,
 };
 
 function loadWeekData(): WeekData {
@@ -113,6 +117,8 @@ export function useWeekData() {
     [yearIncome],
   );
 
+  const getAllWeekIncomes = useCallback(() => yearIncome, [yearIncome]);
+
   return {
     weekData,
     settings,
@@ -121,5 +127,6 @@ export function useWeekData() {
     getEntry,
     addWeekIncome,
     getCumulativeIncome,
+    getAllWeekIncomes,
   };
 }
