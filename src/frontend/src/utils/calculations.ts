@@ -141,7 +141,10 @@ export function calculateDay(
  *   - Weekdag overuren = weekdagUren - weekdag normaal  → krijgen +30% (totaal 130%).
  *   - Zaterdag/zondag krijgen NOOIT die extra +30% overurentoeslag.
  */
-export function splitWeekHours(calculations: DayCalculation[]): {
+export function splitWeekHours(
+  calculations: DayCalculation[],
+  contractHours = 24,
+): {
   satHours: number;
   sunHours: number;
   weekdayHours: number;
@@ -160,10 +163,10 @@ export function splitWeekHours(calculations: DayCalculation[]): {
     .reduce((s, c) => s + c.workedHours, 0);
   const totalHours = satHours + sunHours + weekdayHours;
 
-  // Weekbonus (+30%) geldt ALLEEN als doordeweekse uren de 24u overschrijden.
+  // Weekbonus (+30%) geldt ALLEEN als doordeweekse uren de contracturen overschrijden.
   // Weekend-uren tellen NIET mee voor deze drempel — zij zijn volledig onafhankelijk.
-  const weekdayNormalHours = Math.min(weekdayHours, 24);
-  const weekdayOvertimeHours = Math.max(0, weekdayHours - 24);
+  const weekdayNormalHours = Math.min(weekdayHours, contractHours);
+  const weekdayOvertimeHours = Math.max(0, weekdayHours - contractHours);
 
   return {
     satHours,
@@ -225,7 +228,8 @@ export function calculateWeekExtra(
   settings: Settings,
 ): WeekExtraResult {
   const rate = settings.hourlyRate;
-  const standardPay = 24 * rate;
+  const contractHours = settings.contractHoursPerWeek ?? 24;
+  const standardPay = contractHours * rate;
 
   // Gebruik de CAO-correcte splits
   const {
@@ -234,7 +238,7 @@ export function calculateWeekExtra(
     weekdayNormalHours,
     weekdayOvertimeHours,
     totalHours,
-  } = splitWeekHours(calculations);
+  } = splitWeekHours(calculations, contractHours);
 
   // +30% extra op doordeweekse overuren (niet op weekend)
   // Geldt zodra weekdagUren > 24 — onafhankelijk van weekenduren
@@ -364,7 +368,8 @@ export function calculateDetailedNetPay(
   const rate = settings.hourlyRate;
 
   // Gross splits
-  const grossBase = 24 * rate; // always the contract hours base
+  const contractHoursPerWeek = settings.contractHoursPerWeek ?? 24;
+  const grossBase = contractHoursPerWeek * rate; // contract hours base
   const grossDelayed =
     weekExtra.weekdayOvertimePay +
     weekExtra.saturdayPay +
@@ -559,7 +564,10 @@ export function exportWeekCSV(
     ["Nachttoeslag", eur(extra.nightPay)],
     ["Reiskosten", eur(extra.travelPay)],
     ["", ""],
-    ["Standaardloon (24u basis)", eur(extra.standardPay)],
+    [
+      `Standaardloon (${extra.weekdayNormalHours.toFixed(0)}u basis)`,
+      eur(extra.standardPay),
+    ],
     ["Extra verdiend (uitbetaling volgende periode)", eur(extra.extraPay)],
   ];
 

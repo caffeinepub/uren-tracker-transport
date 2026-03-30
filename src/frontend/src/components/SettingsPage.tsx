@@ -1,7 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -11,9 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BadgeCheck, BookOpen, Moon, PiggyBank, Save } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  BookOpen,
+  Briefcase,
+  CheckCircle,
+  FileText,
+  Moon,
+  PiggyBank,
+  Save,
+  Upload,
+} from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { DEFAULT_SETTINGS } from "../hooks/useWeekData";
 import type { Settings } from "../types";
@@ -110,6 +123,368 @@ const HEFFINGSKORTING_TABLE = [
   },
 ];
 
+type ParsedCAOValue = {
+  key: keyof Settings;
+  label: string;
+  value: number;
+  unit: string;
+  checked: boolean;
+};
+
+async function loadPdfjsLib(): Promise<any> {
+  if ((window as any).pdfjsLib) return (window as any).pdfjsLib;
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js";
+    script.onload = () => resolve();
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  const lib = (window as any).pdfjsLib;
+  lib.GlobalWorkerOptions.workerSrc =
+    "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  return lib;
+}
+
+async function extractTextFromPDF(file: File): Promise<string> {
+  const pdfjsLib = await loadPdfjsLib();
+
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const textParts: string[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map((item: any) => ("str" in item ? item.str : ""))
+      .join(" ");
+    textParts.push(pageText);
+  }
+
+  return textParts.join("\n");
+}
+
+function parseCAOText(text: string): ParsedCAOValue[] {
+  const lower = text.toLowerCase();
+  const results: ParsedCAOValue[] = [];
+
+  // Helper: parse number from Dutch notation (comma as decimal)
+  const parseDutch = (s: string) =>
+    Number.parseFloat(s.replace(/\./g, "").replace(",", "."));
+
+  // Hourly rate: look for patterns like "20,24" near "uurloon" or "per uur" or "\u20ac"
+  const hourlyMatch =
+    lower.match(/uurloon[^\d]{0,20}(\d{1,3}[,.]\d{2})/i) ||
+    lower.match(/(\d{1,3}[,.]\d{2})[^\d]{0,10}per\s+uur/i) ||
+    text.match(/\u20ac\s*(\d{1,3}[,.]\d{2})/i);
+  if (hourlyMatch) {
+    const val = parseDutch(hourlyMatch[1]);
+    if (val > 10 && val < 100) {
+      results.push({
+        key: "hourlyRate",
+        label: "Uurloon",
+        value: val,
+        unit: "\u20ac",
+        checked: true,
+      });
+    }
+  }
+
+  // Nachttoeslag: look for percentage near "nacht"
+  const nachtMatch =
+    lower.match(/nachttoeslag[^\d]{0,30}(\d{1,3}[,.]?\d*)\s*%/i) ||
+    lower.match(/nacht[^\d]{0,20}(\d{1,3}[,.]?\d*)\s*%/i) ||
+    lower.match(/(19|30)[\s,]*%[^\d]{0,30}nacht/i);
+  if (nachtMatch) {
+    const val = parseDutch(nachtMatch[1]);
+    if (val > 0 && val < 100) {
+      results.push({
+        key: "nightSupplementPct",
+        label: "Nachttoeslag",
+        value: val,
+        unit: "%",
+        checked: true,
+      });
+    }
+  }
+
+  // Vakantiegeld: look for percentage near "vakantiegeld" or "vakantie"
+  const vakMatch =
+    lower.match(/vakantiegeld[^\d]{0,30}(\d{1,3}[,.]\d+)\s*%/i) ||
+    lower.match(/vakantie[^\d]{0,20}(\d{1,3}[,.]\d+)\s*%/i) ||
+    lower.match(/(11[,.]\d+)\s*%[^\d]{0,40}vakantie/i);
+  if (vakMatch) {
+    const val = parseDutch(vakMatch[1]);
+    if (val > 5 && val < 30) {
+      results.push({
+        key: "vacationPayPct",
+        label: "Vakantiegeld",
+        value: val,
+        unit: "%",
+        checked: true,
+      });
+    }
+  }
+
+  // Pensioen: look for percentage near "pensioen"
+  const pensMatch =
+    lower.match(/pensioen[^\d]{0,30}(\d{1,3}[,.]\d+)\s*%/i) ||
+    lower.match(/(\d{1,3}[,.]\d+)\s*%[^\d]{0,30}pensioen/i) ||
+    lower.match(/(10[,.]\d+)\s*%[^\d]{0,40}pensioen/i);
+  if (pensMatch) {
+    const val = parseDutch(pensMatch[1]);
+    if (val > 1 && val < 30) {
+      results.push({
+        key: "pensionPct",
+        label: "Pensioen",
+        value: val,
+        unit: "%",
+        checked: true,
+      });
+    }
+  }
+
+  // Saturday bonus
+  const zatMatch =
+    lower.match(/zaterdag[^\d]{0,30}(\d{3})[,.]?\s*%/i) ||
+    lower.match(/(150)[\s,]*%[^\d]{0,30}zaterdag/i);
+  if (zatMatch) {
+    const val = parseDutch(zatMatch[1]);
+    if (val >= 100 && val <= 300) {
+      results.push({
+        key: "saturdayPct",
+        label: "Zaterdagtoeslag",
+        value: val,
+        unit: "%",
+        checked: true,
+      });
+    }
+  }
+
+  // Sunday bonus
+  const zonMatch =
+    lower.match(/zondag[^\d]{0,30}(\d{3})[,.]?\s*%/i) ||
+    lower.match(/(200)[\s,]*%[^\d]{0,30}zondag/i);
+  if (zonMatch) {
+    const val = parseDutch(zonMatch[1]);
+    if (val >= 100 && val <= 300) {
+      results.push({
+        key: "sundayPct",
+        label: "Zondagtoeslag",
+        value: val,
+        unit: "%",
+        checked: true,
+      });
+    }
+  }
+
+  return results;
+}
+
+function CAOUploadCard({
+  onApply,
+}: {
+  onApply: (values: ParsedCAOValue[]) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsedValues, setParsedValues] = useState<ParsedCAOValue[]>([]);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      setError("Alleen PDF-bestanden zijn toegestaan.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    setFileName(file.name);
+    setParsedValues([]);
+
+    try {
+      const text = await extractTextFromPDF(file);
+      const values = parseCAOText(text);
+      setParsedValues(values);
+      const initChecked: Record<string, boolean> = {};
+      for (const v of values) {
+        initChecked[v.key as string] = true;
+      }
+      setChecked(initChecked);
+      if (values.length === 0) {
+        setError(
+          "Geen bekende CAO-waarden herkend in dit PDF-bestand. Controleer of het het juiste bestand is.",
+        );
+      }
+    } catch (_err) {
+      setError(
+        "PDF kon niet worden verwerkt. Controleer of het bestand niet versleuteld of beschadigd is.",
+      );
+    } finally {
+      setIsProcessing(false);
+      // Reset input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleApply = () => {
+    const toApply = parsedValues.filter((v) => checked[v.key as string]);
+    onApply(toApply);
+    toast.success(
+      `${toApply.length} CAO-waarde${toApply.length !== 1 ? "n" : ""} toegepast in instellingen`,
+    );
+    setParsedValues([]);
+    setFileName(null);
+  };
+
+  return (
+    <Card className="border-border shadow-card rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+        <FileText className="w-4 h-4 text-primary" />
+        <div>
+          <h3 className="font-semibold text-foreground text-[15px]">
+            CAO Uploaden
+          </h3>
+          <p className="text-muted-foreground text-[13px] mt-0.5">
+            Upload het nieuwe CAO als PDF \u2014 de app herkent automatisch
+            percentages en uurlonen
+          </p>
+        </div>
+      </div>
+      <div className="p-5 space-y-4">
+        {/* Upload area */}
+        <button
+          type="button"
+          className="w-full border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
+          data-ocid="settings.cao.dropzone"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+          {isProcessing ? (
+            <>
+              <p className="text-[14px] font-medium text-foreground">
+                PDF wordt verwerkt...
+              </p>
+              <p className="text-[12px] text-muted-foreground mt-1">
+                Even geduld
+              </p>
+            </>
+          ) : fileName ? (
+            <>
+              <p className="text-[14px] font-medium text-foreground">
+                {fileName}
+              </p>
+              <p className="text-[12px] text-muted-foreground mt-1">
+                Klik om een ander bestand te kiezen
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[14px] font-medium text-foreground">
+                Klik om CAO PDF te uploaden
+              </p>
+              <p className="text-[12px] text-muted-foreground mt-1">
+                Alleen PDF-bestanden (.pdf)
+              </p>
+            </>
+          )}
+        </button>
+
+        {/* Error */}
+        {error && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
+            <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <p className="text-[13px] text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Parsed results */}
+        {parsedValues.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <p className="text-[13px] font-semibold text-foreground">
+                {parsedValues.length} waarde
+                {parsedValues.length !== 1 ? "n" : ""} herkend uit PDF
+              </p>
+            </div>
+
+            <div className="border border-border rounded-lg overflow-hidden">
+              {parsedValues.map((v, i) => (
+                <div
+                  key={v.key as string}
+                  className={`flex items-center gap-3 px-4 py-3 ${
+                    i < parsedValues.length - 1 ? "border-b border-border" : ""
+                  } ${checked[v.key as string] ? "bg-background" : "bg-muted/30"}`}
+                >
+                  <Checkbox
+                    id={`cao-check-${v.key as string}`}
+                    checked={checked[v.key as string] ?? true}
+                    onCheckedChange={(c) =>
+                      setChecked((prev) => ({
+                        ...prev,
+                        [v.key as string]: !!c,
+                      }))
+                    }
+                    data-ocid="settings.cao.checkbox"
+                  />
+                  <Label
+                    htmlFor={`cao-check-${v.key as string}`}
+                    className="flex-1 cursor-pointer"
+                  >
+                    <span className="text-[13px] font-medium text-foreground">
+                      {v.label}
+                    </span>
+                    <span className="ml-2 text-[13px] font-bold text-primary tabular-nums">
+                      {v.unit === "\u20ac"
+                        ? `\u20ac${v.value.toFixed(2).replace(".", ",")}`
+                        : `${v.value}%`}
+                    </span>
+                  </Label>
+                </div>
+              ))}
+            </div>
+
+            {/* Disclaimer */}
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-[12px] text-amber-800">
+                De percentages zijn automatisch herkend uit de PDF. Controleer
+                altijd de waarden voor je ze opslaat.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleApply}
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold h-10"
+              data-ocid="settings.cao.primary_button"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Toepassen in instellingen
+            </Button>
+          </motion.div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export function SettingsPage({ settings, onSave }: SettingsPageProps) {
   const [form, setForm] = useState<Settings>(settings);
 
@@ -127,9 +502,17 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
     toast.success("Standaardwaarden hersteld");
   };
 
+  const handleCAOApply = (values: ParsedCAOValue[]) => {
+    for (const v of values) {
+      set(v.key, v.value);
+    }
+  };
+
   const algHeffingskorting = form.algHeffingskorting ?? 3068;
   const arbeidskorting = form.arbeidskorting ?? 5599;
   const weeklyHeffingskorting = (algHeffingskorting + arbeidskorting) / 52;
+
+  const currentPct = form.parttimePct ?? 60;
 
   return (
     <motion.div
@@ -138,6 +521,114 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
       transition={{ duration: 0.3 }}
       className="space-y-5"
     >
+      {/* Arbeidscontract */}
+      <Card className="border-border shadow-card rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+          <Briefcase className="w-4 h-4 text-primary" />
+          <div>
+            <h3 className="font-semibold text-foreground text-[15px]">
+              Arbeidscontract
+            </h3>
+            <p className="text-muted-foreground text-[13px] mt-0.5">
+              Stel je parttime-percentage in (basis: 40 uur fulltime)
+            </p>
+          </div>
+        </div>
+        <div className="p-5 space-y-5">
+          {/* Parttime slider */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-[13px] font-medium">
+                Parttime percentage
+              </Label>
+              <span className="text-xl font-bold text-primary tabular-nums">
+                {currentPct}%
+              </span>
+            </div>
+            <Slider
+              min={1}
+              max={100}
+              step={1}
+              value={[currentPct]}
+              onValueChange={(value) => {
+                const pct = value[0];
+                const contract = Math.round(((40 * pct) / 100) * 10) / 10;
+                setForm((p) => ({
+                  ...p,
+                  parttimePct: pct,
+                  contractHoursPerWeek: contract,
+                  fullTimeHoursPerWeek: 40,
+                }));
+              }}
+              className="w-full"
+              data-ocid="settings.parttime.toggle"
+            />
+            {/* Tick labels */}
+            <div className="flex justify-between mt-2 px-0.5">
+              {[20, 40, 60, 80, 100].map((tick) => (
+                <button
+                  key={tick}
+                  type="button"
+                  onClick={() => {
+                    const contract = Math.round(((40 * tick) / 100) * 10) / 10;
+                    setForm((p) => ({
+                      ...p,
+                      parttimePct: tick,
+                      contractHoursPerWeek: contract,
+                      fullTimeHoursPerWeek: 40,
+                    }));
+                  }}
+                  className={`text-[11px] font-medium transition-colors ${
+                    currentPct === tick
+                      ? "text-primary font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tick}%
+                </button>
+              ))}
+            </div>
+            <p className="text-[12px] text-muted-foreground mt-2">
+              Sleep de slider of klik een percentage om je contractbasis in te
+              stellen.
+            </p>
+          </div>
+
+          {/* Result display */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-medium text-foreground">
+                  Contracturen per week
+                </p>
+                <p className="text-[12px] text-muted-foreground mt-0.5">
+                  40u \u00d7 {currentPct}% = contractbasis voor
+                  overuren-berekening
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-primary">
+                  {(form.contractHoursPerWeek ?? 24)
+                    .toFixed(1)
+                    .replace(".", ",")}
+                  u
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  \u2248{" "}
+                  {((form.contractHoursPerWeek ?? 24) / 5)
+                    .toFixed(1)
+                    .replace(".", ",")}
+                  u / dag
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* CAO Uploaden */}
+      <CAOUploadCard onApply={handleCAOApply} />
+
       {/* Loon & reiskosten */}
       <Card className="border-border shadow-card rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
@@ -191,34 +682,6 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               hint="Standaard 200% \u2014 je verdient 2\u00d7 uurloon"
               value={form.sundayPct}
               onChange={(v) => set("sundayPct", v)}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* Overwerk doordeweeks */}
-      <Card className="border-border shadow-card rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
-          <h3 className="font-semibold text-foreground text-[15px]">
-            Overwerk doordeweeks (%)
-          </h3>
-          <p className="text-muted-foreground text-[13px] mt-0.5">
-            Na 8 uur werken op maandag t/m vrijdag
-          </p>
-        </div>
-        <div className="p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <SettingField
-              label="Eerste 2 overuren (%)"
-              hint="Standaard 125%"
-              value={form.overtimeWeekday1Pct}
-              onChange={(v) => set("overtimeWeekday1Pct", v)}
-            />
-            <SettingField
-              label="Daarna (%)"
-              hint="Standaard 150%"
-              value={form.overtimeWeekday2Pct}
-              onChange={(v) => set("overtimeWeekday2Pct", v)}
             />
           </div>
         </div>
@@ -309,30 +772,6 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         </div>
       </Card>
 
-      {/* Avondtoeslag */}
-      <Card className="border-border shadow-card rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
-          <h3 className="font-semibold text-foreground text-[15px]">
-            Avondtoeslag (optioneel)
-          </h3>
-          <p className="text-muted-foreground text-[13px] mt-0.5">
-            Extra % voor uren tussen 18:00 en de nachttoeslag-begintijd.
-          </p>
-        </div>
-        <div className="p-5">
-          <div className="max-w-xs">
-            <SettingField
-              label="Avondtoeslag 18:00 \u2013 nacht (+%)"
-              hint="Standaard 0% (niet verplicht CAO)"
-              step="0.5"
-              value={form.eveningSupplementPct}
-              onChange={(v) => set("eveningSupplementPct", v)}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* Weekbonus */}
       <Card className="border-border shadow-card rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <h3 className="font-semibold text-foreground text-[15px]">

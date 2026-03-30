@@ -54,6 +54,10 @@ export interface Settings {
   // Pensioenprognose (Pensioenfonds Vervoer)
   pensionFranchise: number; // €17.283 default (2026)
   pensionBuildupPct: number; // 1.788% default (Pensioenfonds Vervoer 2026)
+  // Arbeidscontract
+  fullTimeHoursPerWeek: number; // Fulltime basis uren per week (standaard 40)
+  parttimePct: number; // Parttime percentage (standaard 60)
+  contractHoursPerWeek: number; // Berekend: fullTimeHoursPerWeek × parttimePct / 100 (standaard 24)
   pensiongevingSalaryOverride: number | null; // null = auto from app data
 }
 

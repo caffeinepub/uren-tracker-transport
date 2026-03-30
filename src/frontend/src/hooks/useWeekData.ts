@@ -31,6 +31,10 @@ export const DEFAULT_SETTINGS: Settings = {
   pensionFranchise: 17283,
   pensionBuildupPct: 1.788,
   pensiongevingSalaryOverride: null,
+  // Arbeidscontract
+  fullTimeHoursPerWeek: 40,
+  parttimePct: 60,
+  contractHoursPerWeek: 24, // 40 × 60% = 24
 };
 
 function loadWeekData(): WeekData {
