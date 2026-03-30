@@ -60,6 +60,33 @@ const NACHT_TABLE = [
   },
 ];
 
+const CAO_LOONSCHALEN: LoonTabelRow[] = [
+  { schaal: "A1", uurloon: 13.27, periodeloon: 1274.0 },
+  { schaal: "A2", uurloon: 13.84, periodeloon: 1328.7 },
+  { schaal: "A3", uurloon: 14.43, periodeloon: 1385.4 },
+  { schaal: "B1", uurloon: 14.87, periodeloon: 1427.6 },
+  { schaal: "B2", uurloon: 15.48, periodeloon: 1486.1 },
+  { schaal: "B3", uurloon: 16.11, periodeloon: 1546.6 },
+  { schaal: "B4", uurloon: 16.74, periodeloon: 1607.0 },
+  { schaal: "C1", uurloon: 16.75, periodeloon: 1608.0 },
+  { schaal: "C2", uurloon: 17.42, periodeloon: 1672.4 },
+  { schaal: "C3", uurloon: 18.12, periodeloon: 1739.5 },
+  { schaal: "C4", uurloon: 18.84, periodeloon: 1808.7 },
+  { schaal: "D1", uurloon: 18.16, periodeloon: 1743.4 },
+  { schaal: "D2", uurloon: 18.9, periodeloon: 1814.4 },
+  { schaal: "D3", uurloon: 19.37, periodeloon: 1859.6 },
+  { schaal: "D4", uurloon: 19.84, periodeloon: 1904.9 },
+  { schaal: "D5", uurloon: 20.09, periodeloon: 1928.6 },
+  { schaal: "D6", uurloon: 20.24, periodeloon: 1943.0 },
+  { schaal: "E1", uurloon: 20.25, periodeloon: 1944.0 },
+  { schaal: "E2", uurloon: 21.07, periodeloon: 2022.7 },
+  { schaal: "E3", uurloon: 21.91, periodeloon: 2103.5 },
+  { schaal: "E4", uurloon: 22.78, periodeloon: 2187.0 },
+  { schaal: "F1", uurloon: 22.79, periodeloon: 2188.0 },
+  { schaal: "F2", uurloon: 23.7, periodeloon: 2275.3 },
+  { schaal: "F3", uurloon: 24.64, periodeloon: 2365.5 },
+  { schaal: "F4", uurloon: 25.62, periodeloon: 2459.6 },
+];
 const CAO_TABLE = [
   {
     label: "Vakantiegeld",
@@ -744,6 +771,9 @@ function CAOUploadCard({
 
 export function SettingsPage({ settings, onSave }: SettingsPageProps) {
   const [form, setForm] = useState<Settings>(settings);
+  const [activeLoonSchaal, setActiveLoonSchaal] = useState<string | null>(() =>
+    localStorage.getItem("activeLoonSchaal"),
+  );
 
   const set = (key: keyof Settings, value: number | boolean | null) =>
     setForm((p) => ({ ...p, [key]: value }));
@@ -763,6 +793,15 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
     for (const v of values) {
       set(v.key, v.value);
     }
+  };
+
+  const handleSelectBuiltinSchaal = (row: LoonTabelRow) => {
+    setActiveLoonSchaal(row.schaal);
+    localStorage.setItem("activeLoonSchaal", row.schaal);
+    set("hourlyRate", row.uurloon);
+    toast.success(
+      `Schaal ${row.schaal} geselecteerd: u20ac${row.uurloon.toFixed(2).replace(".", ",")} /uur`,
+    );
   };
 
   const algHeffingskorting = form.algHeffingskorting ?? 3068;
@@ -886,6 +925,81 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
       {/* CAO Uploaden */}
       <CAOUploadCard onApply={handleCAOApply} />
 
+      {/* Loonschaal Selecteren */}
+      <Card className="border-border shadow-card rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+          <BadgeCheck className="w-4 h-4 text-primary" />
+          <div>
+            <h3 className="font-semibold text-foreground text-[15px]">
+              Loonschaal selecteren
+            </h3>
+            <p className="text-muted-foreground text-[13px] mt-0.5">
+              CAO Beroepsgoederenvervoer 2026 u2014 klik op jouw schaal om het
+              uurloon in te stellen
+            </p>
+          </div>
+        </div>
+        <div className="p-5 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead className="text-[12px] font-semibold py-2 px-3">
+                  Schaal
+                </TableHead>
+                <TableHead className="text-[12px] font-semibold py-2 px-3">
+                  Uurloon
+                </TableHead>
+                <TableHead className="text-[12px] font-semibold py-2 px-3">
+                  Periodeloon
+                </TableHead>
+                <TableHead className="text-[12px] font-semibold py-2 px-3">
+                  Actie
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {CAO_LOONSCHALEN.map((row) => (
+                <TableRow
+                  key={row.schaal}
+                  className={
+                    activeLoonSchaal === row.schaal ? "bg-primary/10" : ""
+                  }
+                >
+                  <TableCell className="py-2 px-3">
+                    <span className="font-mono font-bold text-[13px] text-primary">
+                      {row.schaal}
+                    </span>
+                    {activeLoonSchaal === row.schaal && (
+                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/20 text-primary">
+                        Actief
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-2 px-3 tabular-nums text-[13px] font-semibold">
+                    u20ac{row.uurloon.toFixed(2).replace(".", ",")}
+                  </TableCell>
+                  <TableCell className="py-2 px-3 tabular-nums text-[13px] text-muted-foreground">
+                    u20ac
+                    {row.periodeloon?.toFixed(2).replace(".", ",") ?? "u2014"}
+                  </TableCell>
+                  <TableCell className="py-2 px-3">
+                    <Button
+                      size="sm"
+                      variant={
+                        activeLoonSchaal === row.schaal ? "default" : "outline"
+                      }
+                      className="h-7 text-[12px] px-2"
+                      onClick={() => handleSelectBuiltinSchaal(row)}
+                    >
+                      Selecteer
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
       {/* Loon & reiskosten */}
       <Card className="border-border shadow-card rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
