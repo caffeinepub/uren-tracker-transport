@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import {
+  BookOpen,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import { CaoTab } from "./components/CaoTab";
 import { DayCard } from "./components/DayCard";
 import { JaarprognoseTab } from "./components/JaarprognoseTab";
 import { ScanModal } from "./components/ScanModal";
@@ -31,7 +33,7 @@ import {
   getWeekNumber,
 } from "./utils/calculations";
 
-type Tab = "week" | "jaarprognose" | "instellingen";
+type Tab = "week" | "jaarprognose" | "cao" | "instellingen";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("week");
@@ -110,6 +112,11 @@ export default function App() {
       id: "jaarprognose",
       label: "Jaarprognose",
       icon: <TrendingUp className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "cao",
+      label: "CAO Artikelen",
+      icon: <BookOpen className="w-3.5 h-3.5" />,
     },
     {
       id: "instellingen",
@@ -306,6 +313,8 @@ export default function App() {
               getAllWeekIncomes={getAllWeekIncomes}
             />
           </>
+        ) : activeTab === "cao" ? (
+          <CaoTab />
         ) : (
           <>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-6">

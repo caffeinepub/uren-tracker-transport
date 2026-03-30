@@ -310,6 +310,7 @@ function CAOUploadCard({
     try {
       const text = await extractTextFromPDF(file);
       const values = parseCAOText(text);
+      localStorage.setItem("cao_full_text", text);
       setParsedValues(values);
       const initChecked: Record<string, boolean> = {};
       for (const v of values) {
