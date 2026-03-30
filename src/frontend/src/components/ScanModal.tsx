@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,7 +18,6 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import Tesseract from "tesseract.js";
 import type { DayEntry } from "../types";
 import { mapParsedDaysToWeek, parseScheduleText } from "../utils/parseSchedule";
 
@@ -39,6 +39,26 @@ interface ScanModalProps {
 }
 
 type ScanStatus = "idle" | "scanning" | "done" | "error";
+
+async function runOCR(
+  url: string,
+  onProgress: (p: number) => void,
+): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // @ts-ignore
+  const T: any = await import(
+    /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js"
+  );
+  const Tesseract = T.default ?? T;
+  const result = await Tesseract.recognize(url, "nld", {
+    logger: (m: { status: string; progress: number }) => {
+      if (m.status === "recognizing text") {
+        onProgress(Math.round(m.progress * 100));
+      }
+    },
+  });
+  return result.data.text as string;
+}
 
 export function ScanModal({
   open,
@@ -79,15 +99,7 @@ export function ScanModal({
       setProgress(0);
 
       try {
-        const result = await Tesseract.recognize(url, "nld", {
-          logger: (m) => {
-            if (m.status === "recognizing text") {
-              setProgress(Math.round(m.progress * 100));
-            }
-          },
-        });
-
-        const text = result.data.text;
+        const text = await runOCR(url, setProgress);
         setRawText(text);
 
         const parsed = parseScheduleText(text);
@@ -129,6 +141,16 @@ export function ScanModal({
     onApply(parsedEntries);
     handleClose();
   }, [parsedEntries, onApply, handleClose]);
+
+  const updateEntry = useCallback(
+    (key: string, field: keyof DayEntry, value: string | number) => {
+      setParsedEntries((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], [field]: value },
+      }));
+    },
+    [],
+  );
 
   const parsedCount = Object.keys(parsedEntries).length;
 
@@ -234,7 +256,7 @@ export function ScanModal({
                         gevonden
                       </p>
                       <p className="text-[12px] text-success-foreground/80 mt-0.5">
-                        Controleer de tijden hieronder voor je ze overneemt.
+                        Controleer en pas de tijden aan voor je ze overneemt.
                       </p>
                     </div>
                   </div>
@@ -253,11 +275,11 @@ export function ScanModal({
                   </div>
                 )}
 
-                {/* Parsed results preview */}
+                {/* Editable parsed results */}
                 {parsedCount > 0 && (
                   <div className="rounded-lg border border-border overflow-hidden">
                     <div className="bg-muted px-3 py-2 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      Herkende tijden
+                      Herkende tijden — pas aan indien nodig
                     </div>
                     <div className="divide-y divide-border">
                       {weekDates.map((date) => {
@@ -267,18 +289,49 @@ export function ScanModal({
                         return (
                           <div
                             key={key}
-                            className="flex items-center justify-between px-3 py-2.5 text-[13px]"
+                            className="flex items-center gap-2 px-3 py-2"
                           >
-                            <span className="font-medium text-foreground">
+                            <span className="text-[13px] font-medium text-foreground w-20 shrink-0">
                               {DAY_NL[date.getDay()]}
                             </span>
-                            <span className="tabular-nums text-muted-foreground">
-                              {entry.startTime} – {entry.endTime}
-                              {entry.breakMinutes > 0 && (
-                                <span className="ml-2 text-red-400">
-                                  ({entry.breakMinutes} min pauze)
-                                </span>
-                              )}
+                            <Input
+                              data-ocid="scan.input"
+                              type="time"
+                              value={entry.startTime}
+                              onChange={(e) =>
+                                updateEntry(key, "startTime", e.target.value)
+                              }
+                              className="h-8 text-sm w-28"
+                            />
+                            <span className="text-muted-foreground text-sm shrink-0">
+                              –
+                            </span>
+                            <Input
+                              data-ocid="scan.input"
+                              type="time"
+                              value={entry.endTime}
+                              onChange={(e) =>
+                                updateEntry(key, "endTime", e.target.value)
+                              }
+                              className="h-8 text-sm w-28"
+                            />
+                            <Input
+                              data-ocid="scan.input"
+                              type="number"
+                              min={0}
+                              max={180}
+                              value={entry.breakMinutes}
+                              onChange={(e) =>
+                                updateEntry(
+                                  key,
+                                  "breakMinutes",
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="h-8 text-sm w-16"
+                            />
+                            <span className="text-[12px] text-muted-foreground shrink-0">
+                              min pauze
                             </span>
                           </div>
                         );
@@ -292,7 +345,8 @@ export function ScanModal({
                   <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
                   <span>
                     De app leest alleen de <strong>bovenste tabel</strong> met
-                    dag-tijden. Controleer de tijden in het preview hierboven.
+                    dag-tijden. Controleer en pas de tijden aan voor je ze
+                    overneemt.
                   </span>
                 </div>
 
@@ -325,6 +379,7 @@ export function ScanModal({
           </Button>
           {status === "done" && parsedCount > 0 && (
             <Button
+              data-ocid="scan.primary_button"
               onClick={handleApply}
               style={{ background: "oklch(0.72 0.165 55)", color: "white" }}
             >

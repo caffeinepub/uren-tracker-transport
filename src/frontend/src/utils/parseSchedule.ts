@@ -65,7 +65,7 @@ function extractTimes(line: string): string[] {
 }
 
 /**
- * Find break minutes from a line, default 30 min.
+ * Find break minutes from a line, default 60 min.
  */
 function extractBreak(line: string): number {
   const m = BREAK_RE.exec(line);
@@ -74,7 +74,7 @@ function extractBreak(line: string): number {
     const val = Number.parseInt(raw, 10);
     if (!Number.isNaN(val) && val >= 0 && val <= 120) return val;
   }
-  return 30;
+  return 60;
 }
 
 /**
@@ -150,7 +150,7 @@ export function parseScheduleText(text: string): ParsedDay[] {
 
     // Break: only from same line (+ next line if we used it)
     const breakContext = usedNextLine ? `${line} ${lines[i + 1]}` : line;
-    let breakMinutes = 30;
+    let breakMinutes = 60;
     if (/pauze|pause/i.test(breakContext)) {
       breakMinutes = extractBreak(breakContext);
     }
