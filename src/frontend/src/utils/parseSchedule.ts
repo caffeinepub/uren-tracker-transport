@@ -1,20 +1,17 @@
 import type { DayEntry } from "../types";
 
-// Dutch day name variants
+// Dutch day name variants -> day of week (0=Sun, 1=Mon … 6=Sat)
 const DAY_PATTERNS: { day: number; patterns: RegExp }[] = [
-  { day: 1, patterns: /\b(maandag|ma\.?|maan)\b/i },
-  { day: 2, patterns: /\b(dinsdag|di\.?|dins)\b/i },
-  { day: 3, patterns: /\b(woensdag|wo\.?|woens)\b/i },
-  { day: 4, patterns: /\b(donderdag|do\.?|dond)\b/i },
-  { day: 5, patterns: /\b(vrijdag|vr\.?|vrij)\b/i },
-  { day: 6, patterns: /\b(zaterdag|za\.?|zat)\b/i },
-  { day: 0, patterns: /\b(zondag|zo\.?|zon)\b/i },
+  { day: 1, patterns: /\b(maandag|maan)\b|\bma\b/i },
+  { day: 2, patterns: /\b(dinsdag|dins)\b|\bdi\b/i },
+  { day: 3, patterns: /\b(woensdag|woens)\b|\bwo\b/i },
+  { day: 4, patterns: /\b(donderdag|dond)\b|\bdo\b/i },
+  { day: 5, patterns: /\b(vrijdag|vrij)\b|\bvr\b/i },
+  { day: 6, patterns: /\b(zaterdag|zat)\b|\bza\b/i },
+  { day: 0, patterns: /\b(zondag|zon)\b|\bzo\b/i },
 ];
 
-// Time pattern: matches HH:MM or H:MM (also HH.MM)
-const TIME_RE = /(\d{1,2})[:.](\d{2})/g;
-
-// Break pattern: common Dutch keywords for breaks
+// Break pattern: common Dutch keywords
 const BREAK_RE =
   /pauze[:\s]*(\d+)\s*(min|minuten)?|pause[:\s]*(\d+)\s*(min)?|(\d+)\s*(min|minuten)\s*pauze/i;
 
@@ -25,28 +22,50 @@ export interface ParsedDay {
 }
 
 /**
- * Tries to extract times from a text line.
- * Returns array of "HH:MM" strings.
+ * Check whether a position in the string is part of a date pattern like 24-03 or 24/3.
+ */
+function isDateContext(
+  line: string,
+  matchStart: number,
+  matchEnd: number,
+): boolean {
+  const before = line.slice(0, matchStart);
+  const after = line.slice(matchEnd);
+  if (/\d[-/]$/.test(before)) return true;
+  if (/^[-/]\d/.test(after)) return true;
+  return false;
+}
+
+/**
+ * Extract valid times (HH:MM or H.MM) from a single line.
+ * Skips patterns that are part of date contexts (like 24-03).
  */
 function extractTimes(line: string): string[] {
+  // Mask date patterns so they don't get picked up as times
+  const masked = line.replace(/(\d{1,2})[-/](\d{1,2})/g, (_, a, b) => {
+    return `${"X".repeat(a.length)}-${"X".repeat(b.length)}`;
+  });
+
   const results: string[] = [];
-  // Reset regex
-  const re = new RegExp(TIME_RE.source, "g");
-  let m = re.exec(line);
+  const re = /(?<![\d])(\d{1,2})[:.](\d{2})(?![\d])/g;
+  let m = re.exec(masked);
   while (m !== null) {
     const h = Number.parseInt(m[1], 10);
     const min = Number.parseInt(m[2], 10);
     if (h >= 0 && h <= 23 && min >= 0 && min <= 59) {
-      results.push(
-        `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
-      );
+      if (!isDateContext(line, m.index, m.index + m[0].length)) {
+        results.push(
+          `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
+        );
+      }
     }
+    m = re.exec(masked);
   }
   return results;
 }
 
 /**
- * Tries to find break minutes on a line.
+ * Find break minutes from a line, default 30 min.
  */
 function extractBreak(line: string): number {
   const m = BREAK_RE.exec(line);
@@ -55,57 +74,95 @@ function extractBreak(line: string): number {
     const val = Number.parseInt(raw, 10);
     if (!Number.isNaN(val) && val >= 0 && val <= 120) return val;
   }
-  return 30; // default 30 min pauze
+  return 30;
+}
+
+/**
+ * Check if a line contains a Dutch day name.
+ */
+function detectDayInLine(line: string): number | null {
+  const lineLow = line.toLowerCase();
+  for (const dp of DAY_PATTERNS) {
+    if (dp.patterns.test(lineLow)) {
+      return dp.day;
+    }
+  }
+  return null;
 }
 
 /**
  * Parse OCR text into day entries.
- * Returns map: dayOfWeek (0-6) -> DayEntry
+ *
+ * Strategy:
+ * 1. Find lines that contain a day name.
+ * 2. Try to extract 2 times from THAT line only.
+ * 3. If fewer than 2 times found, look at the very next line only.
+ * 4. Stop collecting once we've seen ≥1 day entry and then hit 3+ consecutive
+ *    lines with no day name (= we've left the header block).
  */
 export function parseScheduleText(text: string): ParsedDay[] {
   const lines = text
     .split(/\n|\r/)
     .map((l) => l.trim())
     .filter(Boolean);
+
   const results: ParsedDay[] = [];
   const seen = new Set<number>();
 
+  let consecutiveNonDayLines = 0;
+  let foundAtLeastOne = false;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const lineLow = line.toLowerCase();
+    const matchedDay = detectDayInLine(line);
 
-    // Find day of week in this line
-    let matchedDay: number | null = null;
-    for (const dp of DAY_PATTERNS) {
-      if (dp.patterns.test(lineLow)) {
-        matchedDay = dp.day;
-        break;
+    if (matchedDay === null) {
+      if (foundAtLeastOne) {
+        consecutiveNonDayLines++;
+        if (consecutiveNonDayLines >= 3) break;
+      }
+      continue;
+    }
+
+    consecutiveNonDayLines = 0;
+
+    if (seen.has(matchedDay)) continue;
+
+    // Phase 2: try same line first
+    let times = extractTimes(line);
+    let usedNextLine = false;
+
+    // If fewer than 2 times on current line, try the next line only
+    if (times.length < 2 && i + 1 < lines.length) {
+      const nextLine = lines[i + 1];
+      if (detectDayInLine(nextLine) === null) {
+        const nextTimes = extractTimes(nextLine);
+        times = [...times, ...nextTimes];
+        usedNextLine = true;
       }
     }
 
-    if (matchedDay === null) continue;
-    if (seen.has(matchedDay)) continue; // only first occurrence per day
+    if (times.length < 2) continue;
 
-    // Try to extract times from this line and the next 2 lines
-    const contextLines = lines.slice(i, i + 3);
-    const contextText = contextLines.join(" ");
-    const times = extractTimes(contextText);
-
-    if (times.length < 2) continue; // need at least start + end
-
-    // First two non-equal times are start and end
     const startTime = times[0];
     const endTime = times.find((t) => t !== startTime) ?? times[1];
     if (!startTime || !endTime || startTime === endTime) continue;
 
-    // Extract break from context
-    const breakMinutes = extractBreak(contextText);
+    // Break: only from same line (+ next line if we used it)
+    const breakContext = usedNextLine ? `${line} ${lines[i + 1]}` : line;
+    let breakMinutes = 30;
+    if (/pauze|pause/i.test(breakContext)) {
+      breakMinutes = extractBreak(breakContext);
+    }
 
     seen.add(matchedDay);
+    foundAtLeastOne = true;
+    consecutiveNonDayLines = 0;
+
     results.push({
       dayOfWeek: matchedDay,
       entry: { startTime, endTime, breakMinutes },
-      rawLine: contextLines[0],
+      rawLine: line,
     });
   }
 

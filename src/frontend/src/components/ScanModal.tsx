@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FileImage,
+  Info,
   Loader2,
   ScanLine,
   Upload,
@@ -286,7 +287,15 @@ export function ScanModal({
                   </div>
                 )}
 
-                {/* Raw OCR (collapsible) */}
+                {/* Info note + Raw OCR (collapsible) */}
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[12px] text-blue-700">
+                  <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
+                  <span>
+                    De app leest alleen de <strong>bovenste tabel</strong> met
+                    dag-tijden. Controleer de tijden in het preview hierboven.
+                  </span>
+                </div>
+
                 <details className="text-[12px]">
                   <summary className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1.5">
                     <FileImage className="w-3.5 h-3.5" />
