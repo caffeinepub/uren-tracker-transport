@@ -7,14 +7,6 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Calculator,
   ChevronDown,
   Clock,
@@ -23,17 +15,10 @@ import {
   PiggyBank,
   Search,
   Star,
-  TableIcon,
   Umbrella,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-
-interface LoonTabelRow {
-  schaal: string;
-  uurloon: number;
-  periodeloon?: number;
-}
 
 interface CaoArticle {
   id: string;
@@ -306,36 +291,6 @@ function ArticleCard({
 
 export function CaoTab() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [loonTabel] = useState<LoonTabelRow[]>(() => {
-    try {
-      const stored = localStorage.getItem("caoLoonTabel");
-      return stored ? (JSON.parse(stored) as LoonTabelRow[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [activeSchaal] = useState<string | null>(() => {
-    try {
-      const settings = localStorage.getItem("urenTrackerSettings");
-      if (settings) {
-        const parsed = JSON.parse(settings);
-        const hourlyRate = parsed.hourlyRate as number | undefined;
-        if (hourlyRate) {
-          const stored = localStorage.getItem("caoLoonTabel");
-          if (stored) {
-            const rows = JSON.parse(stored) as LoonTabelRow[];
-            const match = rows.find(
-              (r) => Math.abs(r.uurloon - hourlyRate) < 0.01,
-            );
-            return match ? match.schaal : null;
-          }
-        }
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
   const [uploadedText] = useState<string | null>(() =>
     localStorage.getItem("cao_full_text"),
   );
@@ -420,84 +375,6 @@ export function CaoTab() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {loonTabel.length > 0 && (
-        <div className="space-y-3" data-ocid="cao.loonTabel.section">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <TableIcon className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  Loontabellen
-                </h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Herkend uit geüploadede CAO PDF
-                </p>
-              </div>
-            </div>
-            {activeSchaal && (
-              <Badge variant="secondary" className="text-[11px] font-semibold">
-                Actieve schaal: {activeSchaal}
-              </Badge>
-            )}
-          </div>
-          <Card className="overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="text-[12px] font-semibold py-2 px-3">
-                    Schaal
-                  </TableHead>
-                  <TableHead className="text-[12px] font-semibold py-2 px-3">
-                    Uurloon
-                  </TableHead>
-                  <TableHead className="text-[12px] font-semibold py-2 px-3">
-                    Periodeloon
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loonTabel.map((row) => (
-                  <TableRow
-                    key={row.schaal}
-                    className={
-                      activeSchaal === row.schaal
-                        ? "bg-primary/10 font-semibold"
-                        : ""
-                    }
-                    data-ocid="cao.loonTabel.row"
-                  >
-                    <TableCell className="py-2 px-3">
-                      <span className="font-mono font-bold text-[13px] text-primary">
-                        {row.schaal}
-                      </span>
-                      {activeSchaal === row.schaal && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/20 text-primary">
-                          Actief
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="py-2 px-3 tabular-nums text-[13px]">
-                      €{row.uurloon.toFixed(2).replace(".", ",")}
-                    </TableCell>
-                    <TableCell className="py-2 px-3 tabular-nums text-[13px] text-muted-foreground">
-                      {row.periodeloon
-                        ? `€${row.periodeloon.toFixed(2).replace(".", ",")}`
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-          <p className="text-[11px] text-muted-foreground">
-            Upload een nieuwe CAO PDF via Instellingen om de loontabellen bij te
-            werken.
-          </p>
-        </div>
-      )}
 
       {uploadedText && (
         <Collapsible open={uploadedOpen} onOpenChange={setUploadedOpen}>
