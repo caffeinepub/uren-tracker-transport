@@ -157,6 +157,8 @@ export function WeekTotals({
     weeklyBonus,
   } = weekExtra;
 
+  const weekYear = weekDates[0]?.getFullYear() ?? new Date().getFullYear();
+
   const above24 = weekdayOvertimeHours > 0;
   const grandTotal = totals.totalEarned + weeklyBonus;
   const netPay = calculateNetPay(grandTotal, settings);
@@ -290,6 +292,289 @@ export function WeekTotals({
       transition={{ duration: 0.35, delay: 0.32 }}
       className="space-y-3"
     >
+      {/* ─── Prominente Netto Banner ───────────────────────────────────────── */}
+      <div
+        className="rounded-2xl border-2 p-5 shadow-sm"
+        style={{
+          background:
+            "linear-gradient(135deg, oklch(0.97 0.04 145), oklch(0.95 0.06 145))",
+          borderColor: "oklch(0.76 0.14 145)",
+        }}
+        data-ocid="week.netto_banner.card"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <Wallet
+            className="w-5 h-5"
+            style={{ color: "oklch(0.38 0.18 145)" }}
+          />
+          <h2
+            className="text-[13px] font-bold uppercase tracking-widest"
+            style={{ color: "oklch(0.38 0.16 145)" }}
+          >
+            💰 Geschat netto deze maand
+          </h2>
+        </div>
+
+        {/* ── Maandtotaal: 3 aparte regels + totaal ─────────────────────────── */}
+        {/* 1. Netto basisloon | 2. Netto meerwerk | 3. Uitruilen | = Totaal netto */}
+        {(() => {
+          // Fiscale uitruil per maand (CAO-specifiek)
+          let uitruilMaand = 0;
+          if (settings.fiscaleUitruil && settings.reisafstandKm > 0) {
+            const km = settings.reisafstandKm;
+            const caoKmPerRit = Math.max(0, Math.min(km, 35) - 10);
+            const caoVergoedingPerDag = caoKmPerRit * 2 * 0.23;
+            const fiscaalMaxPerDag = km * 2 * 0.23;
+            const uitruilRuimtePerDag = fiscaalMaxPerDag - caoVergoedingPerDag;
+            uitruilMaand =
+              (uitruilRuimtePerDag * settings.reisdagenPerJaar) / 12;
+          }
+          const nettoMeerwerk =
+            detailed.grossDelayed > 0 ? detailed.netDelayed : 0;
+          const totaalNetto =
+            detailed.netThisWeek +
+            detailed.travelAllowance +
+            nettoMeerwerk +
+            uitruilMaand;
+          return (
+            <>
+              {/* 3 regels overzicht */}
+              <div
+                className="rounded-xl border p-3 space-y-2"
+                style={{
+                  background: "oklch(0.99 0.015 145)",
+                  borderColor: "oklch(0.86 0.08 145)",
+                }}
+              >
+                <p
+                  className="text-[10px] font-bold uppercase tracking-widest mb-2"
+                  style={{ color: "oklch(0.46 0.12 145)" }}
+                >
+                  Maandtotaal — specificatie
+                </p>
+                {/* Regel 1: Netto basisloon */}
+                <div
+                  className="flex items-center justify-between py-1.5 border-b"
+                  style={{ borderColor: "oklch(0.90 0.06 145)" }}
+                >
+                  <div>
+                    <p
+                      className="text-[13px] font-semibold"
+                      style={{ color: "oklch(0.36 0.12 145)" }}
+                    >
+                      Netto basisloon
+                    </p>
+                    <p
+                      className="text-[11px] mt-0.5"
+                      style={{ color: "oklch(0.52 0.08 145)" }}
+                    >
+                      {Math.round(settings.contractHoursPerWeek ?? 24)}u
+                      contract à 100% — na premies en heffingskorting
+                    </p>
+                  </div>
+                  <p
+                    className="text-base font-bold tabular-nums"
+                    style={{ color: "oklch(0.32 0.16 145)" }}
+                  >
+                    {formatCurrency(detailed.netThisWeek)}
+                  </p>
+                </div>
+                {/* Regel 2: Netto meerwerk */}
+                <div
+                  className="flex items-center justify-between py-1.5 border-b"
+                  style={{ borderColor: "oklch(0.90 0.06 145)" }}
+                >
+                  <div>
+                    <p
+                      className="text-[13px] font-semibold"
+                      style={{ color: "oklch(0.40 0.14 55)" }}
+                    >
+                      Netto meerwerk
+                    </p>
+                    <p
+                      className="text-[11px] mt-0.5"
+                      style={{ color: "oklch(0.55 0.10 55)" }}
+                    >
+                      Meerurentoeslag (+30%), za/zo toeslagen — na 40,20%
+                      bijzonder tarief
+                    </p>
+                  </div>
+                  <p
+                    className="text-base font-bold tabular-nums"
+                    style={{ color: "oklch(0.40 0.20 55)" }}
+                  >
+                    {nettoMeerwerk > 0 ? formatCurrency(nettoMeerwerk) : "—"}
+                  </p>
+                </div>
+                {/* Regel 3: Uitruilen reiskosten */}
+                <div
+                  className="flex items-center justify-between py-1.5 border-b"
+                  style={{ borderColor: "oklch(0.90 0.06 145)" }}
+                >
+                  <div>
+                    <p
+                      className="text-[13px] font-semibold"
+                      style={{ color: "oklch(0.36 0.14 240)" }}
+                    >
+                      Uitruilen reiskosten
+                    </p>
+                    <p
+                      className="text-[11px] mt-0.5"
+                      style={{ color: "oklch(0.52 0.09 240)" }}
+                    >
+                      {settings.fiscaleUitruil && settings.reisafstandKm > 0
+                        ? `Cafetariaregeling — ${settings.reisafstandKm}km, extra netto via uitruil`
+                        : "Schakel in via Instellingen → Fiscale uitruil"}
+                    </p>
+                  </div>
+                  <p
+                    className="text-base font-bold tabular-nums"
+                    style={{ color: "oklch(0.38 0.16 240)" }}
+                  >
+                    {uitruilMaand > 0 ? formatCurrency(uitruilMaand) : "—"}
+                  </p>
+                </div>
+                {/* Totaal netto */}
+                <div className="flex items-center justify-between pt-1.5">
+                  <p
+                    className="text-[15px] font-bold"
+                    style={{ color: "oklch(0.26 0.18 145)" }}
+                  >
+                    Totaal netto (verwacht)
+                  </p>
+                  <p
+                    className="text-2xl font-bold tabular-nums"
+                    style={{ color: "oklch(0.28 0.20 145)" }}
+                  >
+                    {formatCurrency(totaalNetto)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Groot totaal block */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                <div
+                  className="rounded-xl p-3 border-2"
+                  style={{
+                    background: "oklch(0.98 0.03 145)",
+                    borderColor: "oklch(0.72 0.16 145)",
+                  }}
+                >
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                    style={{ color: "oklch(0.46 0.14 145)" }}
+                  >
+                    Netto basisloon
+                  </p>
+                  <p
+                    className="text-xl font-bold tabular-nums"
+                    style={{ color: "oklch(0.30 0.18 145)" }}
+                  >
+                    {formatCurrency(detailed.netThisWeek)}
+                  </p>
+                  {detailed.travelAllowance > 0 && (
+                    <p
+                      className="text-[11px] mt-0.5"
+                      style={{ color: "oklch(0.48 0.10 145)" }}
+                    >
+                      + {formatCurrency(detailed.travelAllowance)} reiskosten
+                    </p>
+                  )}
+                </div>
+                <div
+                  className="rounded-xl p-3 border"
+                  style={{
+                    background:
+                      nettoMeerwerk > 0
+                        ? "oklch(0.97 0.04 55)"
+                        : "oklch(0.98 0.01 55)",
+                    borderColor:
+                      nettoMeerwerk > 0
+                        ? "oklch(0.78 0.14 55)"
+                        : "oklch(0.90 0.04 55)",
+                  }}
+                >
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                    style={{
+                      color:
+                        nettoMeerwerk > 0
+                          ? "oklch(0.46 0.14 55)"
+                          : "oklch(0.58 0.07 55)",
+                    }}
+                  >
+                    Netto meerwerk
+                  </p>
+                  <p
+                    className="text-xl font-bold tabular-nums"
+                    style={{
+                      color:
+                        nettoMeerwerk > 0
+                          ? "oklch(0.38 0.20 55)"
+                          : "oklch(0.62 0.08 55)",
+                    }}
+                  >
+                    {nettoMeerwerk > 0
+                      ? `${formatCurrency(detailed.netDelayedLow)} – ${formatCurrency(detailed.netDelayedHigh)}`
+                      : "—"}
+                  </p>
+                  <p
+                    className="text-[11px] mt-0.5"
+                    style={{
+                      color:
+                        nettoMeerwerk > 0
+                          ? "oklch(0.52 0.12 55)"
+                          : "oklch(0.65 0.06 55)",
+                    }}
+                  >
+                    {nettoMeerwerk > 0
+                      ? "na 40,20% bijzonder tarief"
+                      : "geen meerwerk"}
+                  </p>
+                </div>
+                <div
+                  className="rounded-xl p-3 border-2"
+                  style={{
+                    background: "oklch(0.97 0.03 145)",
+                    borderColor: "oklch(0.70 0.16 145)",
+                  }}
+                >
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                    style={{ color: "oklch(0.44 0.14 145)" }}
+                  >
+                    Totaal netto geschat
+                  </p>
+                  <p
+                    className="text-2xl font-bold tabular-nums"
+                    style={{ color: "oklch(0.28 0.18 145)" }}
+                  >
+                    {formatCurrency(totaalNetto)}
+                  </p>
+                  <p
+                    className="text-[11px] mt-0.5"
+                    style={{ color: "oklch(0.48 0.12 145)" }}
+                  >
+                    basis + meerwerk{uitruilMaand > 0 ? " + uitruil" : ""}
+                  </p>
+                </div>
+              </div>
+            </>
+          );
+        })()}
+
+        <div
+          className="mt-3 pt-3 border-t text-[11px]"
+          style={{
+            borderColor: "oklch(0.84 0.10 145)",
+            color: "oklch(0.50 0.10 145)",
+          }}
+        >
+          Bruto loon ({formatCurrency(grandTotal)}) en volledige
+          loonspecificatie staan hieronder.
+        </div>
+      </div>
+
       {/* Vertraagde uitbetaling waarschuwing */}
       {hasDelayedItems && (
         <div
@@ -318,7 +603,7 @@ export function WeekTotals({
         <div className="px-5 py-4 border-b border-border flex items-center gap-2">
           <Award className="w-4 h-4 text-orange" />
           <h3 className="font-semibold text-foreground text-[15px]">
-            Weekoverzicht totalen
+            Weekoverzicht – Week {weekNum} – {weekYear}
           </h3>
           {above24 && (
             <span className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange/10 text-orange">
@@ -697,6 +982,68 @@ export function WeekTotals({
           </div>
         </div>
 
+        {/* Fiscale uitruil summary card (CAO-specifiek) */}
+        {settings.fiscaleUitruil &&
+          settings.reisafstandKm > 0 &&
+          (() => {
+            const km = settings.reisafstandKm;
+            const caoKmPerRit = Math.max(0, Math.min(km, 35) - 10);
+            const caoVergoedingPerDag = caoKmPerRit * 2 * 0.23;
+            const fiscaalMaxPerDag = km * 2 * 0.23;
+            const uitruilRuimtePerDag = fiscaalMaxPerDag - caoVergoedingPerDag;
+            const uitruilRuimteJaar =
+              uitruilRuimtePerDag * settings.reisdagenPerJaar;
+            const uitruilRuimteMaand = uitruilRuimteJaar / 12;
+            return uitruilRuimteMaand > 0 ? (
+              <div className="px-5 pb-3">
+                <div
+                  className="rounded-xl p-3 border"
+                  style={{
+                    background: "oklch(0.97 0.04 145)",
+                    borderColor: "oklch(0.88 0.08 145)",
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p
+                        className="text-[10px] font-bold uppercase tracking-wide mb-0.5"
+                        style={{ color: "oklch(0.40 0.14 145)" }}
+                      >
+                        Fiscale uitruil (cafetariaregeling)
+                      </p>
+                      <p
+                        className="text-base font-bold tabular-nums"
+                        style={{ color: "oklch(0.28 0.20 145)" }}
+                      >
+                        €{uitruilRuimteMaand.toFixed(2).replace(".", ",")}
+                        <span
+                          className="text-[11px] font-normal ml-1"
+                          style={{ color: "oklch(0.48 0.12 145)" }}
+                        >
+                          /maand uitruilruimte
+                        </span>
+                      </p>
+                    </div>
+                    <div
+                      className="text-[11px] text-right"
+                      style={{ color: "oklch(0.42 0.10 145)" }}
+                    >
+                      <p>CAO: km 10-35 → {caoKmPerRit}km vergoed</p>
+                      <p>Uitruil: {km}km totaal × 2 × €0,23</p>
+                      <p
+                        className="font-semibold mt-0.5"
+                        style={{ color: "oklch(0.36 0.14 145)" }}
+                      >
+                        Ruimte: €
+                        {uitruilRuimteJaar.toFixed(0).replace(".", ",")}/jaar
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
         {/* Cumulatief jaarsalaris banner */}
         {cumulativeIncome > 0 && (
           <div className="px-5 pb-3">
@@ -998,6 +1345,57 @@ export function WeekTotals({
                     note="wordt later uitbetaald"
                     color="muted"
                   />
+
+                  {/* ── Fiscale uitruil (cafetariaregeling) — CAO-specifiek ──── */}
+                  {settings.fiscaleUitruil &&
+                    settings.reisafstandKm > 0 &&
+                    (() => {
+                      const km = settings.reisafstandKm;
+                      // CAO: alleen km 10-35 vergoed (max 25 km)
+                      const caoKmPerRit2 = Math.max(0, Math.min(km, 35) - 10);
+                      const caoVergoedingPerDag2 = caoKmPerRit2 * 2 * 0.23;
+                      const fiscaalMaxPerDag2 = km * 2 * 0.23;
+                      const uitruilRuimtePerDag2 =
+                        fiscaalMaxPerDag2 - caoVergoedingPerDag2;
+                      const uitruilRuimteJaar2 =
+                        uitruilRuimtePerDag2 * settings.reisdagenPerJaar;
+                      const uitruilRuimteMaand2 = uitruilRuimteJaar2 / 12;
+                      return uitruilRuimteMaand2 > 0 ? (
+                        <>
+                          <SectionDivider label="Fiscale uitruil (cafetariaregeling)" />
+                          <PayRow
+                            label="CAO vergoeding per dag (km 10-35)"
+                            amount={caoVergoedingPerDag2}
+                            note={`${caoKmPerRit2}km × 2 × €0,23`}
+                            color="default"
+                          />
+                          <PayRow
+                            label="Uitruilruimte per maand (extra bovenop CAO)"
+                            amount={uitruilRuimteMaand2}
+                            note={`${km}km alle km − CAO deel, × ${settings.reisdagenPerJaar}d ÷ 12`}
+                            color="green"
+                          />
+                          <div
+                            className="rounded-lg px-3 py-2 mt-1"
+                            style={{
+                              background: "oklch(0.97 0.04 145)",
+                              border: "1px solid oklch(0.88 0.08 145)",
+                            }}
+                          >
+                            <p
+                              className="text-[11px]"
+                              style={{ color: "oklch(0.38 0.12 145)" }}
+                            >
+                              Via uitruil worden ook de eerste 10 km en km boven
+                              35 km onbelast vergoed. Uitruilruimte/jaar:{" "}
+                              <strong>€{uitruilRuimteJaar2.toFixed(0)}</strong>.
+                              Aan het einde van het jaar vindt nacalculatie
+                              plaats op basis van werkelijke reisdagen.
+                            </p>
+                          </div>
+                        </>
+                      ) : null;
+                    })()}
 
                   {/* ── Totaal ──────────────────────────────────── */}
                   <SectionDivider label="Totaal" />

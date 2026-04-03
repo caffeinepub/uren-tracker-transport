@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import {
   BookOpen,
   Calendar,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -15,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CaoTab } from "./components/CaoTab";
 import { DayCard } from "./components/DayCard";
 import { JaarprognoseTab } from "./components/JaarprognoseTab";
+import { MaandScanModal } from "./components/MaandScanModal";
 import { ScanModal } from "./components/ScanModal";
 import { SettingsPage } from "./components/SettingsPage";
 import { SimulationCard } from "./components/SimulationCard";
@@ -39,6 +41,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [scanOpen, setScanOpen] = useState(false);
+  const [maandScanOpen, setMaandScanOpen] = useState(false);
   const {
     settings,
     updateDay,
@@ -97,7 +100,7 @@ export default function App() {
     }
   };
 
-  const weekLabel = `Week ${weekNum}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
+  const weekLabel = `Week ${weekNum} – ${currentWeekYear}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
 
   const currentYear = new Date().getFullYear();
   const period = useMemo(() => getCurrentPeriod(), []);
@@ -258,6 +261,21 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setMaandScanOpen(true)}
+                  className="flex items-center gap-1.5 px-3 h-8 rounded-lg border text-[12px] font-medium transition-colors"
+                  style={{
+                    borderColor: "oklch(0.55 0.16 145 / 40%)",
+                    background: "oklch(0.97 0.03 145)",
+                    color: "oklch(0.40 0.16 145)",
+                  }}
+                  data-ocid="week.maand_scan_button"
+                  title="Maandelijkse urenbijlage inscannen"
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Maand inscannen</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setWeekOffset((w) => w + 1)}
                   className="w-8 h-8 rounded-lg border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors"
                   data-ocid="week.pagination_next"
@@ -338,6 +356,12 @@ export default function App() {
         </a>
       </footer>
 
+      <MaandScanModal
+        open={maandScanOpen}
+        onClose={() => setMaandScanOpen(false)}
+        settings={settings}
+        onApply={handleScanApply}
+      />
       <ScanModal
         open={scanOpen}
         onClose={() => setScanOpen(false)}

@@ -59,6 +59,10 @@ export interface Settings {
   parttimePct: number; // Parttime percentage (standaard 60)
   contractHoursPerWeek: number; // Berekend: fullTimeHoursPerWeek × parttimePct / 100 (standaard 24)
   pensiongevingSalaryOverride: number | null; // null = auto from app data
+  // Fiscale uitruil (cafetariaregeling reiskosten)
+  fiscaleUitruil: boolean; // default false
+  reisafstandKm: number; // enkelvoudige reisafstand in km, default 0
+  reisdagenPerJaar: number; // default 214 (fulltime norm Belastingdienst)
 }
 
 export interface WeekData {

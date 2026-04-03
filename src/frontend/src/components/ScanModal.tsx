@@ -11,6 +11,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FileImage,
+  FileText,
   Info,
   Loader2,
   ScanLine,
@@ -19,7 +20,11 @@ import {
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import type { DayEntry } from "../types";
-import { mapParsedDaysToWeek, parseScheduleText } from "../utils/parseSchedule";
+import {
+  extractTextFromPDF,
+  mapParsedDaysToWeek,
+  parseScheduleText,
+} from "../utils/parseSchedule";
 
 const DAY_NL = [
   "Zondag",
@@ -68,19 +73,25 @@ export function ScanModal({
 }: ScanModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [isPdf, setIsPdf] = useState(false);
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [parsedEntries, setParsedEntries] = useState<Record<string, DayEntry>>(
     {},
   );
+  // Ref to always hold the latest parsedEntries (avoids stale closure in handleApply)
+  const parsedEntriesRef = useRef<Record<string, DayEntry>>({});
   const [rawText, setRawText] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [scanYear, setScanYear] = useState<number>(new Date().getFullYear());
 
   const reset = useCallback(() => {
     setPreview(null);
+    setIsPdf(false);
     setStatus("idle");
     setProgress(0);
     setParsedEntries({});
+    parsedEntriesRef.current = {};
     setRawText("");
     setErrorMsg("");
   }, []);
@@ -93,23 +104,41 @@ export function ScanModal({
   const handleFile = useCallback(
     async (file: File) => {
       if (!file) return;
-      const url = URL.createObjectURL(file);
-      setPreview(url);
+      const isFilePdf = file.type === "application/pdf";
+      setIsPdf(isFilePdf);
       setStatus("scanning");
       setProgress(0);
 
+      if (!isFilePdf) {
+        const url = URL.createObjectURL(file);
+        setPreview(url);
+      } else {
+        setPreview(null);
+      }
+
       try {
-        const text = await runOCR(url, setProgress);
+        let text: string;
+        if (isFilePdf) {
+          setProgress(20);
+          text = await extractTextFromPDF(file);
+          setProgress(100);
+        } else {
+          const url = URL.createObjectURL(file);
+          text = await runOCR(url, setProgress);
+        }
         setRawText(text);
 
         const parsed = parseScheduleText(text);
         const mapped = mapParsedDaysToWeek(parsed, weekDates);
 
         setParsedEntries(mapped);
+        parsedEntriesRef.current = mapped;
         setStatus("done");
-      } catch {
+      } catch (e) {
         setStatus("error");
-        setErrorMsg("OCR mislukt. Probeer een scherpere foto.");
+        setErrorMsg(
+          `Uitlezen mislukt: ${e instanceof Error ? e.message : "Onbekende fout"}`,
+        );
       }
     },
     [weekDates],
@@ -137,17 +166,21 @@ export function ScanModal({
     [handleFile],
   );
 
+  // Use ref as source of truth to avoid stale closure bugs when user edits entries and clicks apply quickly
   const handleApply = useCallback(() => {
-    onApply(parsedEntries);
+    const entriesToApply = { ...parsedEntriesRef.current };
+    if (Object.keys(entriesToApply).length === 0) return;
+    onApply(entriesToApply);
     handleClose();
-  }, [parsedEntries, onApply, handleClose]);
+  }, [onApply, handleClose]);
 
   const updateEntry = useCallback(
     (key: string, field: keyof DayEntry, value: string | number) => {
-      setParsedEntries((prev) => ({
-        ...prev,
-        [key]: { ...prev[key], [field]: value },
-      }));
+      setParsedEntries((prev) => {
+        const updated = { ...prev, [key]: { ...prev[key], [field]: value } };
+        parsedEntriesRef.current = updated;
+        return updated;
+      });
     },
     [],
   );
@@ -163,13 +196,36 @@ export function ScanModal({
             Uitdraai inscannen
           </DialogTitle>
           <DialogDescription>
-            Upload een foto of bestand van de werkuitdraai van je werkgever. De
-            app leest automatisch de tijden uit en vult de week in.
+            Upload een foto of PDF van de werkuitdraai van je werkgever. De app
+            leest automatisch de tijden uit en vult de week in.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Jaar invoer */}
+        <div className="flex items-center gap-3 px-1 py-2 rounded-lg border border-border bg-muted/40">
+          <label
+            className="text-[13px] font-medium text-foreground shrink-0"
+            htmlFor="scan-year"
+          >
+            Jaar (voor weeknummers):
+          </label>
+          <Input
+            id="scan-year"
+            type="number"
+            min={2020}
+            max={2035}
+            value={scanYear}
+            onChange={(e) => setScanYear(Number(e.target.value))}
+            className="h-8 w-24 text-sm"
+            data-ocid="scan.year.input"
+          />
+          <span className="text-[12px] text-muted-foreground">
+            Wordt gebruikt bij overnemen in week
+          </span>
+        </div>
+
         {/* Upload zone */}
-        {!preview && status === "idle" && (
+        {!preview && !isPdf && status === "idle" && (
           <button
             type="button"
             className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-4 cursor-pointer transition-colors hover:border-orange/50 hover:bg-orange/5 w-full"
@@ -177,6 +233,7 @@ export function ScanModal({
             onClick={() => fileRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
+            data-ocid="scan.dropzone"
           >
             <div
               className="w-14 h-14 rounded-full flex items-center justify-center"
@@ -189,10 +246,10 @@ export function ScanModal({
                 Klik om te uploaden
               </p>
               <p className="text-[13px] text-muted-foreground mt-1">
-                Of sleep een foto/bestand hierheen
+                Of sleep een foto of PDF hierheen
               </p>
               <p className="text-[12px] text-muted-foreground/70 mt-2">
-                JPG, PNG, WEBP of PDF
+                JPG, PNG, WEBP of <strong>PDF</strong>
               </p>
             </div>
             <input
@@ -205,7 +262,32 @@ export function ScanModal({
           </button>
         )}
 
-        {/* Preview + scan status */}
+        {/* PDF indicator */}
+        {isPdf && status === "scanning" && (
+          <div
+            className="flex items-center gap-3 p-4 rounded-xl border"
+            style={{ borderColor: "oklch(0.85 0.08 240)" }}
+          >
+            <FileText
+              className="w-8 h-8"
+              style={{ color: "oklch(0.52 0.18 240)" }}
+            />
+            <div>
+              <p className="text-[14px] font-semibold text-foreground">
+                PDF wordt uitgelezen…
+              </p>
+              <p className="text-[12px] text-muted-foreground">
+                Tekst wordt direct geëxtraheerd uit PDF
+              </p>
+            </div>
+            <Loader2
+              className="w-5 h-5 animate-spin ml-auto"
+              style={{ color: "oklch(0.52 0.18 55)" }}
+            />
+          </div>
+        )}
+
+        {/* Image Preview + scan status */}
         {preview && (
           <div className="space-y-4">
             <div className="relative rounded-xl overflow-hidden border border-border bg-muted">
@@ -243,132 +325,131 @@ export function ScanModal({
                 </div>
               </div>
             )}
+          </div>
+        )}
 
-            {/* Done */}
-            {status === "done" && (
-              <div className="space-y-3">
-                {parsedCount > 0 ? (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-success-bg">
-                    <CheckCircle2 className="w-4 h-4 text-success-foreground mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-[13px] font-semibold text-success-foreground">
-                        {parsedCount} dag{parsedCount !== 1 ? "en" : ""}{" "}
-                        gevonden
-                      </p>
-                      <p className="text-[12px] text-success-foreground/80 mt-0.5">
-                        Controleer en pas de tijden aan voor je ze overneemt.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
-                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-[13px] font-semibold text-amber-800">
-                        Geen tijden herkend
-                      </p>
-                      <p className="text-[12px] text-amber-700 mt-0.5">
-                        Probeer een scherpere foto, of voer de uren handmatig
-                        in.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Editable parsed results */}
-                {parsedCount > 0 && (
-                  <div className="rounded-lg border border-border overflow-hidden">
-                    <div className="bg-muted px-3 py-2 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">
-                      Herkende tijden — pas aan indien nodig
-                    </div>
-                    <div className="divide-y divide-border">
-                      {weekDates.map((date) => {
-                        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-                        const entry = parsedEntries[key];
-                        if (!entry) return null;
-                        return (
-                          <div
-                            key={key}
-                            className="flex items-center gap-2 px-3 py-2"
-                          >
-                            <span className="text-[13px] font-medium text-foreground w-20 shrink-0">
-                              {DAY_NL[date.getDay()]}
-                            </span>
-                            <Input
-                              data-ocid="scan.input"
-                              type="time"
-                              value={entry.startTime}
-                              onChange={(e) =>
-                                updateEntry(key, "startTime", e.target.value)
-                              }
-                              className="h-8 text-sm w-28"
-                            />
-                            <span className="text-muted-foreground text-sm shrink-0">
-                              –
-                            </span>
-                            <Input
-                              data-ocid="scan.input"
-                              type="time"
-                              value={entry.endTime}
-                              onChange={(e) =>
-                                updateEntry(key, "endTime", e.target.value)
-                              }
-                              className="h-8 text-sm w-28"
-                            />
-                            <Input
-                              data-ocid="scan.input"
-                              type="number"
-                              min={0}
-                              max={180}
-                              value={entry.breakMinutes}
-                              onChange={(e) =>
-                                updateEntry(
-                                  key,
-                                  "breakMinutes",
-                                  Number(e.target.value),
-                                )
-                              }
-                              className="h-8 text-sm w-16"
-                            />
-                            <span className="text-[12px] text-muted-foreground shrink-0">
-                              min pauze
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Info note + Raw OCR (collapsible) */}
-                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[12px] text-blue-700">
-                  <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
-                  <span>
-                    De app leest alleen de <strong>bovenste tabel</strong> met
-                    dag-tijden. Controleer en pas de tijden aan voor je ze
-                    overneemt.
-                  </span>
+        {/* Done */}
+        {status === "done" && (
+          <div className="space-y-3">
+            {parsedCount > 0 ? (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-success-bg">
+                <CheckCircle2 className="w-4 h-4 text-success-foreground mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[13px] font-semibold text-success-foreground">
+                    {parsedCount} dag{parsedCount !== 1 ? "en" : ""} gevonden
+                  </p>
+                  <p className="text-[12px] text-success-foreground/80 mt-0.5">
+                    Controleer en pas de tijden aan voor je ze overneemt.
+                  </p>
                 </div>
-
-                <details className="text-[12px]">
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1.5">
-                    <FileImage className="w-3.5 h-3.5" />
-                    Ruwe OCR-tekst bekijken
-                  </summary>
-                  <pre className="mt-2 p-3 rounded-lg bg-muted text-[11px] leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-muted-foreground">
-                    {rawText || "(leeg)"}
-                  </pre>
-                </details>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[13px] font-semibold text-amber-800">
+                    Geen tijden herkend
+                  </p>
+                  <p className="text-[12px] text-amber-700 mt-0.5">
+                    Probeer een scherpere foto, of voer de uren handmatig in.
+                  </p>
+                </div>
               </div>
             )}
 
-            {/* Error */}
-            {status === "error" && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
-                <p className="text-[13px] text-destructive">{errorMsg}</p>
+            {/* Editable parsed results */}
+            {parsedCount > 0 && (
+              <div className="rounded-lg border border-border overflow-hidden">
+                <div className="bg-muted px-3 py-2 text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Herkende tijden — pas aan indien nodig
+                </div>
+                <div className="divide-y divide-border">
+                  {weekDates.map((date) => {
+                    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                    const entry = parsedEntries[key];
+                    if (!entry) return null;
+                    return (
+                      <div
+                        key={key}
+                        className="flex items-center gap-2 px-3 py-2"
+                      >
+                        <span className="text-[13px] font-medium text-foreground w-20 shrink-0">
+                          {DAY_NL[date.getDay()]}
+                        </span>
+                        <Input
+                          data-ocid="scan.input"
+                          type="time"
+                          value={entry.startTime}
+                          onChange={(e) =>
+                            updateEntry(key, "startTime", e.target.value)
+                          }
+                          className="h-8 text-sm w-28"
+                        />
+                        <span className="text-muted-foreground text-sm shrink-0">
+                          –
+                        </span>
+                        <Input
+                          data-ocid="scan.input"
+                          type="time"
+                          value={entry.endTime}
+                          onChange={(e) =>
+                            updateEntry(key, "endTime", e.target.value)
+                          }
+                          className="h-8 text-sm w-28"
+                        />
+                        <Input
+                          data-ocid="scan.input"
+                          type="number"
+                          min={0}
+                          max={180}
+                          value={entry.breakMinutes}
+                          onChange={(e) =>
+                            updateEntry(
+                              key,
+                              "breakMinutes",
+                              Number(e.target.value),
+                            )
+                          }
+                          className="h-8 text-sm w-16"
+                        />
+                        <span className="text-[12px] text-muted-foreground shrink-0">
+                          min pauze
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
+
+            {/* Info note + Raw OCR (collapsible) */}
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-blue-50 border border-blue-200 text-[12px] text-blue-700">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
+              <span>
+                Tijden worden uitgelezen uit de <strong>Tijd-kolom</strong> van
+                je uitdraai.
+                {isPdf && " PDF wordt direct uitgelezen (geen OCR nodig)."}{" "}
+                Controleer en pas aan indien nodig.
+              </span>
+            </div>
+
+            <details className="text-[12px]">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1.5">
+                <FileImage className="w-3.5 h-3.5" />
+                Ruwe tekst bekijken
+              </summary>
+              <pre className="mt-2 p-3 rounded-lg bg-muted text-[11px] leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto font-mono text-muted-foreground">
+                {rawText || "(leeg)"}
+              </pre>
+            </details>
+          </div>
+        )}
+
+        {/* Error */}
+        {status === "error" && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+            <AlertCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+            <p className="text-[13px] text-destructive">{errorMsg}</p>
           </div>
         )}
 

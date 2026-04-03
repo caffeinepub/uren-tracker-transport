@@ -1,26 +1,44 @@
 # Uren Tracker Transport
 
 ## Current State
-The app has a CAO PDF upload/URL feature in SettingsPage.tsx that parses and extracts specific percentages (hourly rate, nachttoeslag, vacation pay, pension, Saturday/Sunday bonuses). The CAO tab (CaoTab.tsx) shows static article summaries and any full text from uploaded PDFs. The parser does NOT currently detect or extract loontabellen (wage scale tables).
+Versionie 34 is live. De app heeft:
+- CAO Beroepsgoederenvervoer 2026 loon-/overuren berekening
+- Fiscale uitruil reiskosten sectie in Instellingen (basisimplementatie op basis van €0,23/km × 214 dagen)
+- Scan/OCR importfunctie (ScanModal voor weekly, MaandScanModal voor monthly)
+- Weeknummers worden getoond in het overzicht
+- Netto loon weergave per week
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Loontabel parser**: In `parseCAOText()` in SettingsPage.tsx, add regex/table-detection logic that finds loontabel sections (look for patterns like "loongroep", "schaal", "functieschaal", "periodeloon", "uurloon" in tabular context, and rows with identifiers like A/B/C/D/E or numbers 1-15 followed by monetary amounts).
-- **Loontabel display in CAO Upload card**: After parsing, if loontabellen are found, show them as a table UI below the other parsed values — columns: Schaal/Groep, Uurloon (€), Periodeloon (€ per 4 weken optionally). Add a "Selecteer" button per row so the user can pick their schaal and it sets the hourly wage in settings.
-- **Loontabel display in CaoTab**: If loontabellen were extracted and saved (localStorage), show them in a dedicated "Loontabellen" section in the CAO tab, with the full table and a note about which schaal is currently active.
-- **Persist loontabel data**: Save extracted loontabel rows to localStorage key `caoLoonTabel` so CaoTab can display them.
+- CAO Beroepsgoederenvervoer specifieke uitruilberekening:
+  - Eerste 10 km eigen rekening (geen vergoeding)
+  - Alleen km 10-35 = max 25 km tellen voor CAO-vergoeding
+  - Maximum CAO-vergoeding: 25 km × €0,23 = €5,75 per enkele reis
+  - Fiscale uitruil: alle werkelijke kilometers (inclusief eerste 10 km en alles >35 km) onbelast vergoed via uitruil
+  - Nacalculatie optie op jaarbasis op basis van werkelijke reisdagen
+- Jaarlijkse nacalculatie knop/sectie voor fiscale uitruil
 
 ### Modify
-- `parseCAOText()`: extend with loontabel detection.
-- `CAOUploadCard`: show loontabel section in results UI.
-- `CaoTab.tsx`: add Loontabellen section.
+- **Fiscale uitruil berekening in SettingsPage:** Vervang de huidige generieke berekening door de CAO-specifieke logica:
+  - CAO vergoeding = max(0, min(enkeleReis, 35) - 10) × 2 × €0,23 × werkdagen
+  - Uitruilruimte = (enkeleReis × 2 × €0,23 × werkdagen) - CAO vergoeding
+  - Toon beide bedragen afzonderlijk met uitleg
+- **Maandtotaal display (WeekTotals/App.tsx):** In het maandoverzicht NIET één totaalbedrag tonen, maar drie aparte regels:
+  1. Netto basisloon
+  2. Netto meerwerk (overuren + toeslagen na belasting)
+  3. Uitruilen reiskosten (aparte post)
+  Totaal netto = som van de drie
+- **ScanModal + MaandScanModal (scan bug fix):** Zorg dat bij "Overnemen" de gescande tijden daadwerkelijk correct worden overgenomen in de weekdata. Voeg een expliciet jaarveld toe (dropdown/invoer) zodat de gebruiker het jaar kan bevestigen/corrigeren voordat de uren worden overgenomen.
+- **Weeknummers (App.tsx + alle weergave-componenten):** Overal waar weeknummer getoond wordt (invoerscherm, overzicht, tabs) weergeven als "Week 14 – 2026" in plaats van alleen "Week 14".
 
 ### Remove
-- Nothing removed.
+- Niets verwijderen
 
 ## Implementation Plan
-1. In `SettingsPage.tsx`, extend `parseCAOText()` to detect loontabel blocks: scan for lines containing scale identifiers (D1–D6, A–F, schaal 1–12, etc.) followed by decimal amounts. Store as a separate `loonTabel: LoonTabelRow[]` array returned alongside `ParsedCAOValue[]`.
-2. Update `CAOUploadCard` to receive and display `loonTabel` rows in a table with a "Selecteer" button per row that calls `onApply` with the hourly rate.
-3. Save extracted table to localStorage `caoLoonTabel` on parse.
-4. In `CaoTab.tsx`, read `caoLoonTabel` from localStorage and render a "Loontabellen" section with the full table, highlighting the currently active schaal (from settings hourlyRate).
+1. Lees de huidige fiscale uitruil implementatie in SettingsPage.tsx
+2. Update de uitruilberekening naar CAO Beroepsgoederenvervoer specifieke logica
+3. Voeg in het maandoverzicht drie aparte regels toe voor netto loon / netto meerwerk / uitruilen
+4. Fix de scan-overname bug in ScanModal en MaandScanModal; voeg jaar-invoerveld toe
+5. Voeg overal jaar toe aan weeknummer weergave
+6. Valideer en build

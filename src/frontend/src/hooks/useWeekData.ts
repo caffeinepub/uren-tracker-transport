@@ -35,6 +35,10 @@ export const DEFAULT_SETTINGS: Settings = {
   fullTimeHoursPerWeek: 40,
   parttimePct: 60,
   contractHoursPerWeek: 24, // 40 × 60% = 24
+  // Fiscale uitruil (cafetariaregeling reiskosten)
+  fiscaleUitruil: false,
+  reisafstandKm: 0,
+  reisdagenPerJaar: 214,
 };
 
 function loadWeekData(): WeekData {

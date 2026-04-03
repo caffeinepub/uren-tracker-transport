@@ -18,8 +18,10 @@ import {
   BadgeCheck,
   BookOpen,
   Briefcase,
+  Calculator,
   CheckCircle,
   FileText,
+  Info,
   Link,
   Loader2,
   Moon,
@@ -1000,6 +1002,266 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
           </Table>
         </div>
       </Card>
+      {/* Fiscale uitruil (cafetariaregeling reiskosten) */}
+      <Card className="border-border shadow-card rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Calculator
+              className="w-4 h-4"
+              style={{ color: "oklch(0.45 0.16 145)" }}
+            />
+            <h3 className="font-semibold text-foreground text-[15px]">
+              Fiscale uitruil reiskosten (cafetariaregeling)
+            </h3>
+          </div>
+          <p className="text-muted-foreground text-[13px] mt-0.5">
+            Ruil brutoloon in voor extra onbelaste reiskostenvergoeding
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label className="text-[14px] font-medium text-foreground">
+                Fiscale uitruil berekening inschakelen
+              </Label>
+              <p className="text-[12px] text-muted-foreground mt-0.5">
+                Bereken hoeveel brutoloon je kunt uitruilen voor netto
+                reiskosten
+              </p>
+            </div>
+            <Switch
+              checked={form.fiscaleUitruil}
+              onCheckedChange={(checked) => set("fiscaleUitruil", checked)}
+              data-ocid="settings.fiscale_uitruil.switch"
+            />
+          </div>
+
+          {form.fiscaleUitruil && (
+            <div className="space-y-4 pt-2 border-t border-border">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px] font-medium text-foreground">
+                    Enkele reisafstand (km)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={form.reisafstandKm}
+                    onChange={(e) =>
+                      set("reisafstandKm", Number(e.target.value))
+                    }
+                    className="h-9"
+                    data-ocid="settings.reisafstand.input"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Afstand van huis naar werk (één richting)
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px] font-medium text-foreground">
+                    Reisdagen per jaar
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={260}
+                    step={1}
+                    value={form.reisdagenPerJaar}
+                    onChange={(e) =>
+                      set("reisdagenPerJaar", Number(e.target.value))
+                    }
+                    className="h-9"
+                    data-ocid="settings.reisdagen.input"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Norm Belastingdienst: 214 fulltime; parttime naar rato
+                  </p>
+                </div>
+              </div>
+
+              {form.reisafstandKm > 0 &&
+                (() => {
+                  // CAO Beroepsgoederenvervoer 2026 specifieke berekening
+                  const km = form.reisafstandKm;
+                  // CAO vergoeding: alleen km 10-35 (max 25 km enkele reis)
+                  const caoKmPerRit = Math.max(0, Math.min(km, 35) - 10);
+                  const caoVergoedingPerDag = caoKmPerRit * 2 * 0.23;
+                  // Fiscaal maximum: ALLE km onbelast (via uitruil)
+                  const fiscaalMaxPerDag = km * 2 * 0.23;
+                  // Uitruilruimte = fiscaal max - CAO vergoeding (dit kun je uitruilen)
+                  const uitruilRuimtePerDag =
+                    fiscaalMaxPerDag - caoVergoedingPerDag;
+                  // Jaarlijks (naar rato parttime)
+                  const reisdagen = form.reisdagenPerJaar;
+                  const caoJaar = caoVergoedingPerDag * reisdagen;
+                  const fiscaalMaxJaar = fiscaalMaxPerDag * reisdagen;
+                  const uitruilRuimteJaar = uitruilRuimtePerDag * reisdagen;
+                  const uitruilRuimteMaand = uitruilRuimteJaar / 12;
+                  return (
+                    <div
+                      className="rounded-xl border p-4 space-y-3"
+                      style={{
+                        background: "oklch(0.97 0.04 145)",
+                        borderColor: "oklch(0.88 0.08 145)",
+                      }}
+                    >
+                      <p
+                        className="text-[12px] font-semibold uppercase tracking-wide"
+                        style={{ color: "oklch(0.40 0.16 145)" }}
+                      >
+                        CAO Beroepsgoederenvervoer — Reiskosten berekening
+                      </p>
+
+                      {/* CAO vergoeding uitleg */}
+                      <div
+                        className="rounded-lg p-3 space-y-1.5 text-[12px]"
+                        style={{
+                          background: "oklch(0.94 0.04 240 / 50%)",
+                          border: "1px solid oklch(0.86 0.06 240)",
+                        }}
+                      >
+                        <p
+                          className="font-semibold"
+                          style={{ color: "oklch(0.38 0.12 240)" }}
+                        >
+                          CAO-regels reiskostenvergoeding
+                        </p>
+                        <p style={{ color: "oklch(0.46 0.08 240)" }}>
+                          • Eerste 10 km enkele reis: eigen rekening (geen
+                          vergoeding)
+                        </p>
+                        <p style={{ color: "oklch(0.46 0.08 240)" }}>
+                          • Km 10 t/m 35 enkele reis: €0,23/km (max. 25 km)
+                        </p>
+                        <p style={{ color: "oklch(0.46 0.08 240)" }}>
+                          • Boven 35 km: geen aanvullende CAO-vergoeding
+                        </p>
+                        <p style={{ color: "oklch(0.46 0.08 240)" }}>
+                          • Alleen op daadwerkelijke woon-werkdagen (geen vast
+                          maandbedrag)
+                        </p>
+                      </div>
+
+                      {/* Berekening tabel */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[13px]">
+                          <span style={{ color: "oklch(0.40 0.10 145)" }}>
+                            Jouw afstand:
+                          </span>
+                          <span
+                            className="font-mono font-medium"
+                            style={{ color: "oklch(0.30 0.14 145)" }}
+                          >
+                            {km} km enkele reis
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[13px]">
+                          <span style={{ color: "oklch(0.40 0.10 145)" }}>
+                            1. CAO vergoeding per dag:
+                          </span>
+                          <span
+                            className="font-bold tabular-nums"
+                            style={{ color: "oklch(0.34 0.16 145)" }}
+                          >
+                            €{caoVergoedingPerDag.toFixed(2).replace(".", ",")}
+                            <span
+                              className="text-[11px] font-normal ml-1"
+                              style={{ color: "oklch(0.50 0.10 145)" }}
+                            >
+                              ({caoKmPerRit}km × 2 × €0,23)
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[13px]">
+                          <span style={{ color: "oklch(0.40 0.10 145)" }}>
+                            2. CAO vergoeding per jaar:
+                          </span>
+                          <span
+                            className="font-bold tabular-nums"
+                            style={{ color: "oklch(0.34 0.16 145)" }}
+                          >
+                            €{caoJaar.toFixed(2).replace(".", ",")}
+                            <span
+                              className="text-[11px] font-normal ml-1"
+                              style={{ color: "oklch(0.50 0.10 145)" }}
+                            >
+                              ({reisdagen} reisdagen)
+                            </span>
+                          </span>
+                        </div>
+                        <div
+                          className="flex items-center justify-between text-[13px] pt-1.5 border-t"
+                          style={{ borderColor: "oklch(0.85 0.07 145)" }}
+                        >
+                          <span style={{ color: "oklch(0.38 0.14 55)" }}>
+                            3. Max. fiscaal onbelast/jaar (alle km via uitruil):
+                          </span>
+                          <span
+                            className="font-bold tabular-nums"
+                            style={{ color: "oklch(0.34 0.18 55)" }}
+                          >
+                            €{fiscaalMaxJaar.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[13px]">
+                          <span style={{ color: "oklch(0.38 0.14 55)" }}>
+                            4. Uitruilruimte per jaar (extra bovenop CAO):
+                          </span>
+                          <span
+                            className="font-bold tabular-nums"
+                            style={{ color: "oklch(0.34 0.18 55)" }}
+                          >
+                            €{uitruilRuimteJaar.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
+                        <div
+                          className="flex items-center justify-between text-[14px] pt-1.5 border-t"
+                          style={{ borderColor: "oklch(0.82 0.10 145)" }}
+                        >
+                          <span
+                            className="font-semibold"
+                            style={{ color: "oklch(0.30 0.16 145)" }}
+                          >
+                            ★ Uitruilruimte per maand:
+                          </span>
+                          <span
+                            className="font-bold tabular-nums text-base"
+                            style={{ color: "oklch(0.28 0.20 145)" }}
+                          >
+                            €{uitruilRuimteMaand.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Info box */}
+                      <div
+                        className="flex items-start gap-2 p-3 rounded-lg text-[12px]"
+                        style={{
+                          background: "oklch(0.94 0.06 145 / 60%)",
+                          color: "oklch(0.38 0.12 145)",
+                        }}
+                      >
+                        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          Via <strong>cafetariaregeling/uitruil</strong> wissel
+                          je brutoloon in voor extra netto reiskostenvergoeding.
+                          Zo worden ook de eerste 10 km en km boven 35 km
+                          onbelast vergoed. Dit levert al snel{" "}
+                          <strong>€800+ netto per jaar</strong> extra op
+                          (afhankelijk van afstand). Aan het einde van het jaar
+                          wordt <strong>nacalculatie</strong> gedaan op basis
+                          van werkelijke reisdagen.
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+            </div>
+          )}
+        </div>
+      </Card>
+
       {/* Loon & reiskosten */}
       <Card className="border-border shadow-card rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
@@ -1020,8 +1282,8 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
               onChange={(v) => set("hourlyRate", v)}
             />
             <SettingField
-              label="Reiskosten per dag (\u20ac)"
-              hint="Standaard \u20ac10,12 (32 km woon-werk)"
+              label="Reiskosten per werkdag (\u20ac) — belastingvrij"
+              hint="Simon Loos: \u20ac10,12 per dag. Dit bedrag wordt direct opgeteld bij je netto loon (nauwelijks belast)."
               step="0.01"
               value={form.travelAllowancePerDay}
               onChange={(v) => set("travelAllowancePerDay", v)}
