@@ -99,6 +99,17 @@ export default function App() {
 
   const period = useMemo(() => getCurrentPeriod(), []);
 
+  // Merge live meerwerk for current week into the stored map so the period
+  // summary always shows the up-to-date value even before it is persisted.
+  const weekExtraIncomesWithCurrent = useMemo(() => {
+    const base = getAllWeekExtraIncomes();
+    const currentKey = `${currentWeekYear}-W${String(weekNum).padStart(2, "0")}`;
+    if (weekExtra.extraPay > 0) {
+      return { ...base, [currentKey]: weekExtra.extraPay };
+    }
+    return base;
+  }, [getAllWeekExtraIncomes, currentWeekYear, weekNum, weekExtra.extraPay]);
+
   useEffect(() => {
     if (grandTotal > 0) {
       addWeekIncome(weekNum, currentWeekYear, grandTotal);
@@ -321,7 +332,7 @@ export default function App() {
               calculations={calculations}
               settings={settings}
               weekNum={weekNum}
-              weekExtraIncomes={getAllWeekExtraIncomes()}
+              weekExtraIncomes={weekExtraIncomesWithCurrent}
               periodStartDate={period.startDate}
               periodEndDate={period.endDate}
               netBasePay4Weeks={netBasePay4Weeks}
