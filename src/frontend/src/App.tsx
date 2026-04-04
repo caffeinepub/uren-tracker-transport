@@ -26,6 +26,7 @@ import { useWeekData } from "./hooks/useWeekData";
 import type { DayEntry } from "./types";
 import {
   calculateDay,
+  calculateDetailedNetPay,
   calculateWeekExtra,
   formatDateKey,
   formatDutchDate,
@@ -48,8 +49,10 @@ export default function App() {
     updateSettings,
     getEntry,
     addWeekIncome,
+    addWeekExtraPay,
     getCumulativeIncome,
     getAllWeekIncomes,
+    getAllWeekExtraIncomes,
   } = useWeekData();
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
@@ -88,11 +91,26 @@ export default function App() {
     [getCumulativeIncome],
   );
 
+  // Net base pay for 4 weeks (used in period summary)
+  const netBasePay4Weeks = useMemo(() => {
+    const detailed = calculateDetailedNetPay(weekExtra, settings, 0);
+    return detailed.netThisWeek * 4;
+  }, [weekExtra, settings]);
+
+  const period = useMemo(() => getCurrentPeriod(), []);
+
   useEffect(() => {
     if (grandTotal > 0) {
       addWeekIncome(weekNum, currentWeekYear, grandTotal);
     }
   }, [weekNum, currentWeekYear, grandTotal, addWeekIncome]);
+
+  // Store extra pay (meerwerk) per week separately
+  useEffect(() => {
+    if (weekExtra.extraPay > 0) {
+      addWeekExtraPay(weekNum, currentWeekYear, weekExtra.extraPay);
+    }
+  }, [weekNum, currentWeekYear, weekExtra.extraPay, addWeekExtraPay]);
 
   const handleScanApply = (entries: Record<string, DayEntry>) => {
     for (const [key, entry] of Object.entries(entries)) {
@@ -100,10 +118,9 @@ export default function App() {
     }
   };
 
-  const weekLabel = `Week ${weekNum} – ${currentWeekYear}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
+  const weekLabel = `Week ${weekNum} \u2013 ${currentWeekYear}: ${formatDutchShortDate(weekDates[0])} \u2013 ${formatDutchShortDate(weekDates[6])}`;
 
   const currentYear = new Date().getFullYear();
-  const period = useMemo(() => getCurrentPeriod(), []);
 
   const navItems: { id: Tab; label: string; icon: React.ReactNode }[] = [
     {
@@ -199,7 +216,7 @@ export default function App() {
                   Periode {period.periodNumber} 2026
                 </span>
                 <span className="text-[12px] opacity-70">
-                  {formatDutchDate(period.startDate)} –{" "}
+                  {formatDutchDate(period.startDate)} \u2013{" "}
                   {formatDutchDate(period.endDate)}
                 </span>
               </div>
@@ -211,7 +228,7 @@ export default function App() {
                 Overuren & toeslagen van deze periode worden uitbetaald in{" "}
                 <strong>
                   periode {period.periodNumber + 1} (
-                  {formatDutchDate(period.nextStartDate)} –{" "}
+                  {formatDutchDate(period.nextStartDate)} \u2013{" "}
                   {formatDutchDate(period.nextEndDate)})
                 </strong>
               </span>
@@ -304,9 +321,13 @@ export default function App() {
               calculations={calculations}
               settings={settings}
               weekNum={weekNum}
+              weekExtraIncomes={getAllWeekExtraIncomes()}
+              periodStartDate={period.startDate}
+              periodEndDate={period.endDate}
+              netBasePay4Weeks={netBasePay4Weeks}
             />
 
-            {/* Week totals (officiële loonstrook-weergave) */}
+            {/* Week totals (officiele loonstrook-weergave) */}
             <WeekTotals
               calculations={calculations}
               hourlyRate={settings.hourlyRate}
@@ -345,14 +366,14 @@ export default function App() {
 
       {/* Footer */}
       <footer className="py-4 text-center text-[12px] text-muted-foreground border-t border-border">
-        © {currentYear}.{" "}
+        \u00a9 {currentYear}.{" "}
         <a
           href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-foreground transition-colors"
         >
-          Gemaakt met ❤️ via caffeine.ai
+          Gemaakt met \u2764\ufe0f via caffeine.ai
         </a>
       </footer>
 

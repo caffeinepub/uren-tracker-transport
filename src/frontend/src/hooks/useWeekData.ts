@@ -4,6 +4,7 @@ import type { DayEntry, Settings, WeekData } from "../types";
 const STORAGE_KEY = "trucktijden_week_data";
 const SETTINGS_KEY = "trucktijden_settings";
 const YEAR_INCOME_KEY = "trucktijden_year_income";
+const WEEK_EXTRA_KEY = "trucktijden_week_extra";
 
 export const DEFAULT_SETTINGS: Settings = {
   hourlyRate: 20.24,
@@ -70,10 +71,20 @@ function loadYearIncome(): YearIncome {
   }
 }
 
+function loadWeekExtra(): YearIncome {
+  try {
+    const raw = localStorage.getItem(WEEK_EXTRA_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function useWeekData() {
   const [weekData, setWeekData] = useState<WeekData>(loadWeekData);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [yearIncome, setYearIncome] = useState<YearIncome>(loadYearIncome);
+  const [weekExtraMap, setWeekExtraMap] = useState<YearIncome>(loadWeekExtra);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(weekData));
@@ -86,6 +97,10 @@ export function useWeekData() {
   useEffect(() => {
     localStorage.setItem(YEAR_INCOME_KEY, JSON.stringify(yearIncome));
   }, [yearIncome]);
+
+  useEffect(() => {
+    localStorage.setItem(WEEK_EXTRA_KEY, JSON.stringify(weekExtraMap));
+  }, [weekExtraMap]);
 
   const updateDay = useCallback((dateKey: string, entry: DayEntry) => {
     setWeekData((prev) => ({ ...prev, [dateKey]: entry }));
@@ -112,6 +127,14 @@ export function useWeekData() {
     [],
   );
 
+  const addWeekExtraPay = useCallback(
+    (weekNum: number, year: number, extraPay: number) => {
+      const key = `${year}-W${String(weekNum).padStart(2, "0")}`;
+      setWeekExtraMap((prev) => ({ ...prev, [key]: extraPay }));
+    },
+    [],
+  );
+
   const getCumulativeIncome = useCallback(
     (year: number, upToWeekNum?: number): number => {
       return Object.entries(yearIncome).reduce((sum, [key, amount]) => {
@@ -127,6 +150,11 @@ export function useWeekData() {
 
   const getAllWeekIncomes = useCallback(() => yearIncome, [yearIncome]);
 
+  const getAllWeekExtraIncomes = useCallback(
+    () => weekExtraMap,
+    [weekExtraMap],
+  );
+
   return {
     weekData,
     settings,
@@ -134,7 +162,9 @@ export function useWeekData() {
     updateSettings,
     getEntry,
     addWeekIncome,
+    addWeekExtraPay,
     getCumulativeIncome,
     getAllWeekIncomes,
+    getAllWeekExtraIncomes,
   };
 }
