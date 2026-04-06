@@ -686,3 +686,24 @@ export function getWeekNumber(date: Date): number {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
+
+/**
+ * Berekent het periodenummer op basis van het ISO-weeknummer.
+ * Periode 1 = week 1-4, Periode 2 = week 5-8, Periode 3 = week 9-12, enz.
+ */
+export function getPeriodForWeek(weekNum: number): number {
+  return Math.ceil(weekNum / 4);
+}
+
+/**
+ * Geeft het week-bereik voor een bepaalde periode.
+ * Periode 1 → week 1-4, Periode 2 → week 5-8, enz.
+ */
+export function getPeriodWeekRange(periodNumber: number): {
+  startWeek: number;
+  endWeek: number;
+} {
+  const startWeek = (periodNumber - 1) * 4 + 1;
+  const endWeek = periodNumber * 4;
+  return { startWeek, endWeek };
+}

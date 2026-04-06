@@ -32,6 +32,8 @@ import {
   formatDutchDate,
   formatDutchShortDate,
   getCurrentPeriod,
+  getPeriodForWeek,
+  getPeriodWeekRange,
   getWeekDates,
   getWeekNumber,
 } from "./utils/calculations";
@@ -99,6 +101,9 @@ export default function App() {
 
   const period = useMemo(() => getCurrentPeriod(), []);
 
+  // Periode op basis van weeknummer (week 1-4 = periode 1, etc.)
+  const weekPeriodNumber = useMemo(() => getPeriodForWeek(weekNum), [weekNum]);
+
   // Merge live meerwerk for current week into the stored map so the period
   // summary always shows the up-to-date value even before it is persisted.
   const weekExtraIncomesWithCurrent = useMemo(() => {
@@ -129,7 +134,7 @@ export default function App() {
     }
   };
 
-  const weekLabel = `Week ${weekNum} \u2013 ${currentWeekYear}: ${formatDutchShortDate(weekDates[0])} \u2013 ${formatDutchShortDate(weekDates[6])}`;
+  const weekLabel = `Week ${weekNum} – ${currentWeekYear} · Periode ${weekPeriodNumber}: ${formatDutchShortDate(weekDates[0])} – ${formatDutchShortDate(weekDates[6])}`;
 
   const currentYear = new Date().getFullYear();
 
@@ -224,10 +229,14 @@ export default function App() {
               <div className="flex items-center gap-2 shrink-0">
                 <Clock className="w-4 h-4" />
                 <span className="font-semibold">
-                  Periode {period.periodNumber} 2026
+                  Periode {period.periodNumber} {period.startDate.getFullYear()}
                 </span>
-                <span className="text-[12px] opacity-70">
-                  {formatDutchDate(period.startDate)} \u2013{" "}
+                <span className="text-[12px] opacity-60 ml-1">
+                  (week {getPeriodWeekRange(period.periodNumber).startWeek} t/m{" "}
+                  {getPeriodWeekRange(period.periodNumber).endWeek})
+                </span>
+                <span className="text-[12px] opacity-70 ml-1">
+                  {formatDutchDate(period.startDate)} –{" "}
                   {formatDutchDate(period.endDate)}
                 </span>
               </div>
