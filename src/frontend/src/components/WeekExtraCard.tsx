@@ -973,7 +973,7 @@ export function WeekExtraCard({
                       className="text-[12px]"
                       style={{ color: "oklch(0.72 0.12 145)" }}
                     >
-                      Totaal meerwerk deze periode
+                      Netto meerwerk (4 weken)
                     </span>
                     <span
                       className="text-[14px] font-bold tabular-nums"
@@ -1012,13 +1012,13 @@ export function WeekExtraCard({
                         className="text-[13px] font-bold"
                         style={{ color: "oklch(0.95 0.04 145)" }}
                       >
-                        Totaal netto verwacht
+                        Verwacht uitbetaald salaris
                       </p>
                       <p
                         className="text-[10px] mt-0.5"
                         style={{ color: "oklch(0.60 0.10 145)" }}
                       >
-                        meerwerk + basisloon (4 wkn)
+                        netto meerwerk + netto basisloon
                       </p>
                     </div>
                     <p
