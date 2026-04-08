@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DayEntry, Settings, WeekData } from "../types";
+import { restoreUserData } from "../utils/restoreData";
 
 const STORAGE_KEY = "trucktijden_week_data";
 const SETTINGS_KEY = "trucktijden_settings";
@@ -43,6 +44,9 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 function loadWeekData(): WeekData {
+  // Run synchronously before useState initializer so restored data is
+  // available on the very first render.
+  restoreUserData();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
